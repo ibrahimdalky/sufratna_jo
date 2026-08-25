@@ -10,24 +10,34 @@
 
   var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
 
-  async function fetchCSV() {
+  function fetchWithProxy(proxyUrl) {
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 6000);
+    return fetch(proxyUrl, { signal: controller.signal })
+      .then(function (res) {
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error('not ok');
+        return res.text();
+      })
+      .then(function (text) {
+        if (!text || text.length < 50 || text.indexOf(',') === -1) throw new Error('bad data');
+        return text;
+      })
+      .catch(function (e) {
+        clearTimeout(timeout);
+        throw e;
+      });
+  }
+
+  function fetchCSV() {
+    var encoded = encodeURIComponent(CSV_URL);
     var proxies = [
-      'https://api.allorigins.win/raw?url=' + encodeURIComponent(CSV_URL),
-      'https://corsproxy.io/?url=' + encodeURIComponent(CSV_URL),
-      'https://proxy.cors.sh/' + CSV_URL
+      'https://api.allorigins.win/raw?url=' + encoded,
+      'https://corsproxy.io/?url=' + encoded,
+      'https://thingproxy.freeboard.io/fetch/' + CSV_URL,
+      'https://yacdn.org/serve/' + CSV_URL
     ];
-    for (var i = 0; i < proxies.length; i++) {
-      try {
-        var res = await fetch(proxies[i], { cache: 'no-store' });
-        if (res.ok) {
-          var text = await res.text();
-          if (text.includes(',')) return text;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-    throw new Error('All proxies failed');
+    return Promise.any(proxies.map(function (url) { return fetchWithProxy(url); }));
   }
 
   var PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
@@ -213,9 +223,12 @@
     $productSwiper.style.display = 'none';
 
     fetchCSV()
-      .then(function (text) { handleCSV(text); })
+      .then(function (text) {
+        console.log('CSV loaded, length:', text.length);
+        handleCSV(text);
+      })
       .catch(function (err) {
-        console.error('CSV fetch failed:', err);
+        console.error('FETCH ERROR:', err);
         $skeletonLoader.style.display = 'none';
         $errorState.style.display = 'block';
       });
