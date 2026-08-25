@@ -6,9 +6,8 @@
   <title>سفرتنا | أطباق تراثية أردنية</title>
   <meta name="description" content="سفرتنا – أطباق تراثية أردنية أصيلة محضّرة بحب. اطلب الآن واستمتع بتوصيل مجاني!" />
   <meta name="theme-color" content="#141210" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>" />
 
-  <!-- Google Fonts – Readex Pro (Arabic optimized) -->
+  <!-- Google Fonts – Readex Pro -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&display=swap" rel="stylesheet" />
@@ -16,7 +15,7 @@
   <!-- Swiper 11 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 
-  <!-- Font Awesome 6 Icons -->
+  <!-- Font Awesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
   <!-- App Styles -->
@@ -24,170 +23,110 @@
 </head>
 <body>
 
-  <!-- ═══════════════════════════════════════════════
-       ANNOUNCEMENT BAR – Free Delivery Notice
-       ═══════════════════════════════════════════════ -->
-  <div id="announcement-bar" class="announcement-bar">
+  <!-- ══════════ ANNOUNCEMENT BAR ══════════ -->
+  <div class="announcement-bar">
     <span>🚚 رسوم التوصيل مجاناً لجميع الطلبات</span>
   </div>
 
-  <!-- ═══════════════════════════════════════════════
-       HEADER – Brand Logo
-       ═══════════════════════════════════════════════ -->
-  <header id="app-header" class="app-header">
+  <!-- ══════════ HEADER / LOGO ══════════ -->
+  <header class="app-header">
     <div class="logo-container" id="logo-container">
       <img id="brand-logo" class="brand-logo" src="" alt="سفرتنا" />
     </div>
   </header>
 
-  <!-- ═══════════════════════════════════════════════
-       MAIN CONTENT AREA
-       ═══════════════════════════════════════════════ -->
-  <main id="app-main">
+  <!-- ══════════ MAIN ══════════ -->
+  <main>
 
-    <!-- Category Filter Tabs -->
-    <nav id="category-tabs" class="category-tabs" aria-label="تصنيفات المنتجات">
-      <!-- Dynamically populated by app.js -->
-    </nav>
+    <!-- Category Tabs -->
+    <nav id="category-tabs" class="category-tabs"></nav>
 
-    <!-- Skeleton Loader (shown while data loads) -->
+    <!-- Skeleton Loader -->
     <section id="skeleton-loader" class="skeleton-section">
       <div class="skeleton-slider">
-        <div class="skeleton-card">
-          <div class="skeleton-image skeleton-pulse"></div>
-          <div class="skeleton-text skeleton-pulse"></div>
-          <div class="skeleton-text short skeleton-pulse"></div>
-          <div class="skeleton-btn skeleton-pulse"></div>
-        </div>
-        <div class="skeleton-card">
-          <div class="skeleton-image skeleton-pulse"></div>
-          <div class="skeleton-text skeleton-pulse"></div>
-          <div class="skeleton-text short skeleton-pulse"></div>
-          <div class="skeleton-btn skeleton-pulse"></div>
-        </div>
-        <div class="skeleton-card">
-          <div class="skeleton-image skeleton-pulse"></div>
-          <div class="skeleton-text skeleton-pulse"></div>
-          <div class="skeleton-text short skeleton-pulse"></div>
-          <div class="skeleton-btn skeleton-pulse"></div>
-        </div>
+        <div class="skeleton-card"><div class="sk-img sk-pulse"></div><div class="sk-line sk-pulse"></div><div class="sk-line short sk-pulse"></div><div class="sk-btn sk-pulse"></div></div>
+        <div class="skeleton-card"><div class="sk-img sk-pulse"></div><div class="sk-line sk-pulse"></div><div class="sk-line short sk-pulse"></div><div class="sk-btn sk-pulse"></div></div>
+        <div class="skeleton-card"><div class="sk-img sk-pulse"></div><div class="sk-line sk-pulse"></div><div class="sk-line short sk-pulse"></div><div class="sk-btn sk-pulse"></div></div>
       </div>
     </section>
 
-    <!-- 3D Coverflow Product Slider -->
-    <section id="products-section" class="products-section" style="display:none;">
-      <div class="swiper" id="product-swiper">
-        <div class="swiper-wrapper" id="swiper-wrapper">
-          <!-- Dynamically populated by app.js -->
-        </div>
+    <!-- Products Swiper -->
+    <section id="products-section" class="products-section" style="display:none">
+      <div class="swiper">
+        <div class="swiper-wrapper" id="swiper-wrapper"></div>
       </div>
     </section>
 
     <!-- Empty State -->
-    <section id="empty-state" class="empty-state" style="display:none;">
+    <section id="empty-state" class="empty-state" style="display:none">
       <i class="fa-solid fa-utensils"></i>
       <p>لا توجد منتجات في هذا التصنيف</p>
     </section>
 
   </main>
 
-  <!-- ═══════════════════════════════════════════════
-       FLOATING CART BAR (Sticky Bottom)
-       ═══════════════════════════════════════════════ -->
-  <div id="cart-bar" class="cart-bar" onclick="toggleCartDrawer()">
-    <div class="cart-bar-content">
+  <!-- ══════════ FLOATING CART BAR ══════════ -->
+  <div id="cart-bar" class="cart-bar">
+    <div class="cart-bar-inner">
       <div class="cart-bar-right">
-        <div class="cart-icon-wrapper" id="cart-icon-wrapper">
-          <i class="fa-solid fa-cart-shopping" id="cart-icon"></i>
+        <div class="cart-icon-wrap" id="cart-icon-wrap">
+          <i class="fa-solid fa-cart-shopping"></i>
           <span class="cart-badge" id="cart-badge">0</span>
         </div>
         <span class="cart-bar-label">سلة المشتريات</span>
       </div>
-      <div class="cart-bar-left">
-        <span class="cart-bar-total" id="cart-bar-total">0.00 د.أ</span>
+      <span class="cart-bar-total" id="cart-bar-total">0.00 د.أ</span>
+    </div>
+  </div>
+
+  <!-- ══════════ CART DRAWER (Bottom Sheet) ══════════ -->
+  <div id="cart-overlay" class="drawer-overlay"></div>
+  <div id="cart-drawer" class="drawer">
+    <div class="drawer-handle"></div>
+
+    <!-- VIEW 1: Cart Items -->
+    <div id="cart-view" class="drawer-view">
+      <div class="drawer-header">
+        <h2><i class="fa-solid fa-cart-shopping"></i> سلة المشتريات</h2>
+        <button class="drawer-close" id="btn-close-drawer" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="drawer-body" id="cart-items-container"></div>
+      <div class="drawer-footer" id="cart-footer" style="display:none">
+        <div class="delivery-badge"><i class="fa-solid fa-truck-fast"></i> 🚚 رسوم التوصيل: <strong>مجاناً</strong></div>
+        <div class="total-row"><span>المجموع الكلي:</span><span id="cart-total" class="total-price">0.00 د.أ</span></div>
+        <button class="btn-checkout" id="btn-checkout"><i class="fa-brands fa-whatsapp"></i> متابعة الطلب</button>
+      </div>
+    </div>
+
+    <!-- VIEW 2: WhatsApp Rep Selection (inside same drawer) -->
+    <div id="whatsapp-view" class="drawer-view" style="display:none">
+      <div class="drawer-header">
+        <h2><i class="fa-brands fa-whatsapp" style="color:#25D366"></i> إرسال الطلب</h2>
+        <button class="drawer-close" id="btn-back-cart" aria-label="رجوع"><i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+      <div class="drawer-body wa-body">
+        <p class="wa-prompt">اختر المسؤول لتأكيد الطلب عبر واتساب:</p>
+        <button class="wa-contact-btn" data-person="ibrahim">
+          <div class="wa-avatar"><i class="fa-solid fa-user"></i></div>
+          <div class="wa-info"><span class="wa-name">إبراهيم</span><span class="wa-phone" dir="ltr">+962 78 736 4679</span></div>
+          <i class="fa-brands fa-whatsapp wa-icon"></i>
+        </button>
+        <button class="wa-contact-btn" data-person="rakan">
+          <div class="wa-avatar"><i class="fa-solid fa-user"></i></div>
+          <div class="wa-info"><span class="wa-name">ركان</span><span class="wa-phone" dir="ltr">+962 78 929 001</span></div>
+          <i class="fa-brands fa-whatsapp wa-icon"></i>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════
-       CART DRAWER (Bottom Sheet Modal)
-       ═══════════════════════════════════════════════ -->
-  <div id="cart-overlay" class="cart-overlay" onclick="toggleCartDrawer()"></div>
-  <div id="cart-drawer" class="cart-drawer">
-    <div class="cart-drawer-handle"></div>
-    <div class="cart-drawer-header">
-      <h2><i class="fa-solid fa-cart-shopping"></i> سلة المشتريات</h2>
-      <button class="cart-close-btn" onclick="toggleCartDrawer()" aria-label="إغلاق السلة">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-    <div class="cart-drawer-body" id="cart-drawer-body">
-      <!-- Dynamically populated by app.js -->
-    </div>
-    <div class="cart-drawer-footer" id="cart-drawer-footer" style="display:none;">
-      <div class="cart-delivery-badge">
-        <i class="fa-solid fa-truck-fast"></i>
-        <span>🚚 رسوم التوصيل: <strong>مجاناً</strong></span>
-      </div>
-      <div class="cart-total-row">
-        <span>المجموع الكلي:</span>
-        <span class="cart-total-price" id="cart-total-price">0.00 د.أ</span>
-      </div>
-      <button class="checkout-btn" id="checkout-btn" onclick="openWhatsAppModal()">
-        <i class="fa-brands fa-whatsapp"></i>
-        <span>تأكيد الطلب</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       WHATSAPP DISPATCHER MODAL
-       ═══════════════════════════════════════════════ -->
-  <div id="whatsapp-overlay" class="whatsapp-overlay" onclick="closeWhatsAppModal()"></div>
-  <div id="whatsapp-modal" class="whatsapp-modal">
-    <div class="whatsapp-modal-header">
-      <h3><i class="fa-brands fa-whatsapp"></i> إرسال الطلب عبر واتساب</h3>
-      <button class="modal-close-btn" onclick="closeWhatsAppModal()" aria-label="إغلاق">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-    <p class="whatsapp-prompt">اختر المسؤول لتأكيد وإرسال طلبك مباشرة عبر واتساب:</p>
-    <div class="whatsapp-contacts">
-      <button class="whatsapp-contact-btn" onclick="sendWhatsApp('ibrahim')">
-        <div class="contact-avatar">
-          <i class="fa-solid fa-user"></i>
-        </div>
-        <div class="contact-info">
-          <span class="contact-name">إبراهيم</span>
-          <span class="contact-number" dir="ltr">+962 78 736 4679</span>
-        </div>
-        <i class="fa-brands fa-whatsapp contact-wa-icon"></i>
-      </button>
-      <button class="whatsapp-contact-btn" onclick="sendWhatsApp('rakan')">
-        <div class="contact-avatar">
-          <i class="fa-solid fa-user"></i>
-        </div>
-        <div class="contact-info">
-          <span class="contact-name">ركان</span>
-          <span class="contact-number" dir="ltr">+962 78 929 001</span>
-        </div>
-        <i class="fa-brands fa-whatsapp contact-wa-icon"></i>
-      </button>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       TOAST NOTIFICATION
-       ═══════════════════════════════════════════════ -->
-  <div id="toast" class="toast">
-    <i class="fa-solid fa-circle-check"></i>
-    <span>تمت الإضافة إلى السلة ✓</span>
-  </div>
+  <!-- ══════════ TOAST ══════════ -->
+  <div id="toast" class="toast"><i class="fa-solid fa-circle-check"></i> <span>تمت الإضافة إلى السلة ✓</span></div>
 
   <!-- Swiper 11 JS -->
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
-  <!-- App Logic -->
+  <!-- App -->
   <script src="app.js"></script>
 
 </body>

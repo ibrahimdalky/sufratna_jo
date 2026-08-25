@@ -1,106 +1,119 @@
 /* ═══════════════════════════════════════════════════════════════════
-   سفرتنا – App Logic (Refactored)
+   سفرتنا – Complete App Logic  (Production)
    ═══════════════════════════════════════════════════════════════════
-   Architecture:
-     1. Bulletproof CSV parser (handles missing columns, HTML img tags)
-     2. Swiper.js coverflow – initialized ONLY after DOM render
-     3. Per-card size state via DOM data attributes (survives re-render)
-     4. Fly-to-cart animation with parabolic arc
-     5. Cart state with live UI sync
-     6. WhatsApp dispatcher with URL-encoded message
+   1. CSV fetch & bulletproof parse
+   2. Category tabs with instant filter + Swiper re-init
+   3. Swiper 11 coverflow – lifecycle managed
+   4. Size pills with per-card DOM state
+   5. Cart: add / qty / remove / totals
+   6. Fly-to-cart animation (Web Animations API)
+   7. Drawer: cart view ↔ WhatsApp view
+   8. WhatsApp message builder & wa.me redirect
    ═══════════════════════════════════════════════════════════════════ */
 
-// ─── CONSTANTS ────────────────────────────────────────────────────
-const CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
+// ─── Constants ────────────────────────────────────────────────────
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
 
-const WHATSAPP = {
-  ibrahim: { number: '962787364679', greeting: 'مرحبا ابراهيم 👋' },
-  rakan:   { number: '96278929001',  greeting: 'مرحبا ركان 👋' }
+const REPS = {
+  ibrahim: { phone: '962787364679', name: 'ابراهيم', greeting: 'مرحبا ابراهيم 👋' },
+  rakan:   { phone: '96278929001',  name: 'ركان',   greeting: 'مرحبا ركان 👋' }
 };
 
-// ─── STATE ────────────────────────────────────────────────────────
-let allProducts     = [];   // All parsed products (flat array of objects)
-let filteredProducts = [];  // Products visible after category filter
-let activeCategory  = 'الكل';
-let cart            = [];   // { id, name, size, price, qty, image }
-let swiperInstance  = null;
-let logoUrl         = '';
+const FALLBACK_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect fill='%231C1917' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23C47D4C' font-size='48'%3E🍽️%3C/text%3E%3C/svg%3E";
+
+// ─── State ────────────────────────────────────────────────────────
+let allProducts      = [];
+let filteredProducts  = [];
+let activeCategory   = 'الكل';
+let cart             = [];   // { id, name, size, price, qty, image }
+let swiperInstance   = null;
+let logoUrl          = '';
 
 // ═══════════════════════════════════════════════════════════════════
-// 1. CSV FETCH & BULLETPROOF PARSE
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  // Wire up all static buttons with event listeners (no inline onclick)
+  document.getElementById('cart-bar').addEventListener('click', openDrawer);
+  document.getElementById('btn-close-drawer').addEventListener('click', closeDrawer);
+  document.getElementById('cart-overlay').addEventListener('click', closeDrawer);
+  document.getElementById('btn-checkout').addEventListener('click', showWhatsAppView);
+  document.getElementById('btn-back-cart').addEventListener('click', showCartView);
+
+  // WhatsApp contact buttons (delegation)
+  document.querySelectorAll('.wa-contact-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      sendWhatsApp(btn.dataset.person);
+    });
+  });
+
+  // Fetch data
+  fetchProducts();
+});
+
+
+// ═══════════════════════════════════════════════════════════════════
+//  1. CSV FETCH & PARSE
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Entry point – fetches CSV text from Google Sheets.
- */
 async function fetchProducts() {
   try {
-    const res = await fetch(CSV_URL);
+    var res = await fetch(CSV_URL);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
+    var text = await res.text();
     parseCSV(text);
   } catch (err) {
     console.error('Fetch error:', err);
-    document.getElementById('skeleton-loader').innerHTML = `
-      <div style="text-align:center;padding:40px;color:var(--text-muted)">
-        <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem;color:var(--primary);margin-bottom:12px"></i>
-        <p>عذراً، حدث خطأ في تحميل المنتجات</p>
-        <button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;border-radius:50px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--text-main);font-family:'Readex Pro',sans-serif;cursor:pointer">
-          إعادة المحاولة
-        </button>
-      </div>`;
+    document.getElementById('skeleton-loader').innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--muted)">' +
+      '<i class="fa-solid fa-triangle-exclamation" style="font-size:2rem;color:var(--primary);margin-bottom:12px"></i>' +
+      '<p>عذراً، حدث خطأ في تحميل المنتجات</p>' +
+      '<button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;border-radius:50px;border:1px solid var(--border);background:var(--glass);color:var(--text);font-family:\'Readex Pro\',sans-serif;cursor:pointer">إعادة المحاولة</button>' +
+      '</div>';
   }
 }
 
-/**
- * Parses raw CSV text. Finds the header row dynamically by looking
- * for a row containing "id". Maps each data row to a product object
- * using header-based column lookup (column order doesn't matter).
- */
 function parseCSV(text) {
-  const rows = tokenizeCSV(text);
+  var rows = tokenize(text);
 
-  // ── Find header row (any row that contains a cell trimming to "id")
-  let headerIdx = -1;
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i].some(c => c.trim().toLowerCase() === 'id')) {
-      headerIdx = i;
-      break;
+  // Find header row
+  var hi = -1;
+  for (var i = 0; i < rows.length; i++) {
+    for (var j = 0; j < rows[i].length; j++) {
+      if (rows[i][j].trim().toLowerCase() === 'id') { hi = i; break; }
     }
+    if (hi !== -1) break;
   }
-  if (headerIdx === -1) { console.error('Header row not found'); return; }
+  if (hi === -1) { console.error('No header found'); return; }
 
-  // ── Normalize header names
-  const headers = rows[headerIdx].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
-  const data    = rows.slice(headerIdx + 1);
+  var headers = rows[hi].map(function(h) { return h.trim().toLowerCase().replace(/\s+/g, '_'); });
+  var data = rows.slice(hi + 1);
 
   allProducts = [];
 
-  for (const row of data) {
-    // Skip empty rows (need at least an id and a name)
+  for (var r = 0; r < data.length; r++) {
+    var row = data[r];
     if (!row[0] || !row[0].trim()) continue;
 
-    // Build product object by header name
-    const p = {};
-    headers.forEach((key, i) => { p[key] = (row[i] || '').trim(); });
+    var p = {};
+    for (var c = 0; c < headers.length; c++) {
+      p[headers[c]] = (row[c] || '').trim();
+    }
 
-    // ── Availability: default TRUE when column is missing
+    // Availability – treat as available by default
     if (p.is_available && p.is_available.toUpperCase() === 'FALSE') continue;
 
-    // ── Image URL: extract src from HTML <img> tags
+    // Image
     p.image_url = extractSrc(p.image_url);
 
-    // ── Logo: grab from first product that has it
+    // Logo (grab from first row that has it)
     if (!logoUrl && p.logo) logoUrl = extractSrc(p.logo);
 
-    // ── Base price
+    // Base price
     p.base_price = parseFloat(p.base_price) || 0;
 
-    // ── Variants from sizes_and_prices
+    // Variants
     p.variants = parseSizes(p.sizes_and_prices);
-
-    // If no variants, create a single default variant from base_price
     if (p.variants.length === 0) {
       p.variants = [{ size: '', price: p.base_price }];
     }
@@ -108,238 +121,193 @@ function parseCSV(text) {
     allProducts.push(p);
   }
 
-  // ── Set logo
-  const logoEl = document.getElementById('brand-logo');
+  // Logo
+  var logoEl = document.getElementById('brand-logo');
   if (logoUrl && logoEl) {
     logoEl.src = logoUrl;
   } else {
-    const c = document.getElementById('logo-container');
-    if (c) c.style.display = 'none';
+    var lc = document.getElementById('logo-container');
+    if (lc) lc.style.display = 'none';
   }
 
-  // ── First render
-  filteredProducts = [...allProducts];
+  filteredProducts = allProducts.slice();
   renderCategoryTabs();
   renderProducts();
 }
 
-/**
- * Robust CSV tokenizer. Handles:
- *  - Quoted fields containing commas, newlines, and double-quotes
- *  - Mixed \r\n / \n / \r line endings
- */
-function tokenizeCSV(text) {
-  const rows = [];
-  let row = [], cell = '', inQ = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i], nx = text[i + 1];
-
+/* ── CSV tokenizer (handles quoted fields with commas/newlines) ── */
+function tokenize(text) {
+  var rows = [], row = [], cell = '', inQ = false;
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i], nx = text[i + 1] || '';
     if (inQ) {
       if (ch === '"' && nx === '"') { cell += '"'; i++; }
-      else if (ch === '"')          { inQ = false; }
-      else                          { cell += ch; }
+      else if (ch === '"') { inQ = false; }
+      else { cell += ch; }
     } else {
-      if (ch === '"')                             { inQ = true; }
-      else if (ch === ',')                        { row.push(cell); cell = ''; }
-      else if (ch === '\r' && nx === '\n')         { row.push(cell); cell = ''; rows.push(row); row = []; i++; }
-      else if (ch === '\n' || ch === '\r')         { row.push(cell); cell = ''; rows.push(row); row = []; }
-      else                                        { cell += ch; }
+      if (ch === '"') { inQ = true; }
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\r' && nx === '\n') { row.push(cell); cell = ''; rows.push(row); row = []; i++; }
+      else if (ch === '\n' || ch === '\r') { row.push(cell); cell = ''; rows.push(row); row = []; }
+      else { cell += ch; }
     }
   }
   if (cell || row.length) { row.push(cell); rows.push(row); }
   return rows;
 }
 
-/**
- * Extracts the first `src` URL from an HTML string.
- * Handles both single-quoted and double-quoted (escaped) src attributes.
- */
+/* ── Extract src from HTML img tag ── */
 function extractSrc(html) {
   if (!html) return '';
-  // Try standard src="..." first, then escaped src=""...""
-  let m = html.match(/src\s*=\s*"([^"]+)"/i)
+  var m = html.match(/src\s*=\s*"([^"]+)"/i)
        || html.match(/src\s*=\s*""([^"]+)""/i)
        || html.match(/src\s*=\s*'([^']+)'/i);
   if (m) return m[1];
-  // Already a plain URL?
   if (/^https?:\/\//i.test(html)) return html.trim();
   return '';
 }
 
-/**
- * Parses "وسط=2.5, كبير=4" → [{ size:'وسط', price:2.5 }, { size:'كبير', price:4 }]
- */
+/* ── Parse "وسط=2.5, كبير=4" ── */
 function parseSizes(str) {
   if (!str || !str.trim()) return [];
-  return str.split(',')
-    .map(pair => {
-      const [name, val] = pair.split('=').map(s => s.trim());
-      const price = parseFloat(val);
-      return (name && !isNaN(price)) ? { size: name, price } : null;
-    })
-    .filter(Boolean);
+  var result = [];
+  var pairs = str.split(',');
+  for (var i = 0; i < pairs.length; i++) {
+    var parts = pairs[i].split('=');
+    var name = (parts[0] || '').trim();
+    var price = parseFloat((parts[1] || '').trim());
+    if (name && !isNaN(price)) {
+      result.push({ size: name, price: price });
+    }
+  }
+  return result;
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. CATEGORY TABS
+//  2. CATEGORY TABS
 // ═══════════════════════════════════════════════════════════════════
 
 function renderCategoryTabs() {
-  const cats = ['الكل', ...new Set(allProducts.map(p => p.category).filter(Boolean))];
-  const $tabs = document.getElementById('category-tabs');
+  var cats = ['الكل'];
+  var seen = {};
+  for (var i = 0; i < allProducts.length; i++) {
+    var cat = allProducts[i].category;
+    if (cat && !seen[cat]) { seen[cat] = true; cats.push(cat); }
+  }
 
-  $tabs.innerHTML = cats.map(c =>
-    `<button class="category-tab${c === activeCategory ? ' active' : ''}"
-             data-cat="${c}">${c}</button>`
-  ).join('');
+  var tabsEl = document.getElementById('category-tabs');
+  var html = '';
+  for (var j = 0; j < cats.length; j++) {
+    var isActive = cats[j] === activeCategory ? ' active' : '';
+    html += '<button class="cat-tab' + isActive + '" data-cat="' + cats[j] + '">' + cats[j] + '</button>';
+  }
+  tabsEl.innerHTML = html;
 
-  // Event delegation (avoids inline onclick with Arabic quotes issues)
-  $tabs.onclick = e => {
-    const btn = e.target.closest('.category-tab');
+  // Delegation
+  tabsEl.addEventListener('click', function(e) {
+    var btn = e.target.closest('.cat-tab');
     if (btn) filterByCategory(btn.dataset.cat);
-  };
+  });
 }
 
 function filterByCategory(cat) {
   activeCategory = cat;
 
-  document.querySelectorAll('.category-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.cat === cat)
-  );
+  var tabs = document.querySelectorAll('.cat-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle('active', tabs[i].dataset.cat === cat);
+  }
 
-  filteredProducts = cat === 'الكل'
-    ? [...allProducts]
-    : allProducts.filter(p => p.category === cat);
+  if (cat === 'الكل') {
+    filteredProducts = allProducts.slice();
+  } else {
+    filteredProducts = allProducts.filter(function(p) { return p.category === cat; });
+  }
 
   renderProducts();
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 3. PRODUCT RENDERING & SWIPER INITIALIZATION
+//  3. RENDER PRODUCTS + SWIPER LIFECYCLE
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Renders product cards into the Swiper wrapper, then initializes
- * (or re-initializes) Swiper. Swiper is NEVER created before cards
- * exist in the DOM.
- */
 function renderProducts() {
   document.getElementById('skeleton-loader').style.display = 'none';
+  var section = document.getElementById('products-section');
+  var empty   = document.getElementById('empty-state');
+  var wrapper = document.getElementById('swiper-wrapper');
 
-  const $section = document.getElementById('products-section');
-  const $empty   = document.getElementById('empty-state');
-  const $wrapper = document.getElementById('swiper-wrapper');
-
-  if (!filteredProducts.length) {
-    $section.style.display = 'none';
-    $empty.style.display   = 'block';
+  if (filteredProducts.length === 0) {
+    section.style.display = 'none';
+    empty.style.display = 'block';
     return;
   }
 
-  $empty.style.display   = 'none';
-  $section.style.display = 'block';
+  empty.style.display = 'none';
+  section.style.display = 'block';
 
-  // ── Build slide HTML
-  $wrapper.innerHTML = filteredProducts.map(product => {
-    const defaultPrice = product.variants[0].price;
-    const defaultSize  = product.variants[0].size;
-    const hasSizes     = product.variants.length > 1 || product.variants[0].size !== '';
+  // Build slides HTML
+  var html = '';
+  for (var i = 0; i < filteredProducts.length; i++) {
+    var p = filteredProducts[i];
+    var defPrice = p.variants[0].price;
+    var defSize  = p.variants[0].size;
+    var hasSizes = p.variants.length > 1 || p.variants[0].size !== '';
 
-    const pills = hasSizes
-      ? `<div class="size-selector">${
-          product.variants.map((v, i) =>
-            `<button class="size-pill${i === 0 ? ' active' : ''}"
-                     data-vidx="${i}"
-                     data-vprice="${v.price}"
-                     data-vsize="${v.size}">${v.size}</button>`
-          ).join('')
-        }</div>`
-      : '';
+    // Size pills
+    var pills = '';
+    if (hasSizes) {
+      pills = '<div class="sizes">';
+      for (var s = 0; s < p.variants.length; s++) {
+        var v = p.variants[s];
+        var ac = s === 0 ? ' active' : '';
+        pills += '<button class="sz-pill' + ac + '" data-vidx="' + s + '" data-vprice="' + v.price + '" data-vsize="' + v.size + '">' + v.size + '</button>';
+      }
+      pills += '</div>';
+    }
 
-    // Fallback image as inline SVG data URI
-    const fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect fill='%231C1917' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23C47D4C' font-size='48'%3E🍽️%3C/text%3E%3C/svg%3E";
-
-    return `
-      <div class="swiper-slide">
-        <div class="product-card"
-             data-pid="${product.id}"
-             data-pname="${product.name}"
-             data-pimage="${product.image_url}"
-             data-active-price="${defaultPrice}"
-             data-active-size="${defaultSize}">
-          <div class="product-image-wrapper">
-            <img class="product-image"
-                 src="${product.image_url || fallback}"
-                 alt="${product.name}"
-                 loading="lazy"
-                 onerror="this.onerror=null;this.src='${fallback}'" />
-          </div>
-          <div class="product-info">
-            <h3 class="product-name">${product.name}</h3>
-            <p class="product-description">${product.description || ''}</p>
-            ${pills}
-            <div class="product-price-row">
-              <span class="product-price">${defaultPrice.toFixed(2)} <span class="currency">د.أ</span></span>
-            </div>
-            <button class="add-to-cart-btn" aria-label="أضف إلى السلة">
-              <i class="fa-solid fa-cart-plus"></i>
-              <span>أضف إلى السلة</span>
-            </button>
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-
-  // ── Attach event listeners via delegation on the wrapper
-  $wrapper.onclick = handleCardClick;
-
-  // ── Initialize Swiper AFTER cards are in the DOM
-  initSwiper();
-}
-
-/**
- * Event delegation handler for all clicks inside product cards.
- */
-function handleCardClick(e) {
-  const sizePill = e.target.closest('.size-pill');
-  const addBtn   = e.target.closest('.add-to-cart-btn');
-
-  if (sizePill) {
-    e.stopPropagation();
-    selectSize(sizePill);
-    return;
+    html +=
+      '<div class="swiper-slide">' +
+        '<div class="product-card" data-pid="' + p.id + '" data-pname="' + escAttr(p.name) + '" data-pimage="' + escAttr(p.image_url) + '" data-price="' + defPrice + '" data-size="' + escAttr(defSize) + '">' +
+          '<div class="img-wrap">' +
+            '<img src="' + (p.image_url || FALLBACK_IMG) + '" alt="' + escAttr(p.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + FALLBACK_IMG + '\'">' +
+          '</div>' +
+          '<div class="p-info">' +
+            '<h3 class="p-name">' + p.name + '</h3>' +
+            '<p class="p-desc">' + (p.description || '') + '</p>' +
+            pills +
+            '<div class="price-row">' +
+              '<span class="price">' + defPrice.toFixed(2) + ' <span class="cur">د.أ</span></span>' +
+            '</div>' +
+            '<button class="btn-add"><i class="fa-solid fa-cart-plus"></i> أضف إلى السلة</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
   }
 
-  if (addBtn) {
-    e.stopPropagation();
-    const card = addBtn.closest('.product-card');
-    if (card) addToCart(card);
-    return;
-  }
-}
+  // Step 1: Update DOM
+  wrapper.innerHTML = html;
 
-/**
- * Initializes Swiper.js coverflow effect.
- * Destroys any previous instance first.
- * Called ONLY after product slides exist in the DOM.
- */
-function initSwiper() {
-  // Destroy previous instance cleanly
+  // Step 2: Attach event delegation on wrapper
+  wrapper.removeEventListener('click', handleProductClick);
+  wrapper.addEventListener('click', handleProductClick);
+
+  // Step 3: Destroy old Swiper then re-init
   if (swiperInstance) {
     swiperInstance.destroy(true, true);
     swiperInstance = null;
   }
 
-  swiperInstance = new Swiper('#product-swiper', {
+  // Step 4: Create new Swiper
+  swiperInstance = new Swiper('.swiper', {
     effect: 'coverflow',
     grabCursor: true,
     centeredSlides: true,
     slidesPerView: 'auto',
     initialSlide: 0,
-
+    spaceBetween: 20,
     coverflowEffect: {
       rotate: 0,
       stretch: 0,
@@ -347,266 +315,269 @@ function initSwiper() {
       modifier: 2,
       slideShadows: false
     },
-
-    // Touch handling
-    touchEventsTarget: 'wrapper',
-    touchRatio: 1,
-    threshold: 5,
-    resistance: true,
-    resistanceRatio: 0.85,
-    speed: 450,
-
-    // Observe DOM changes
-    observer: true,
-    observeParents: true,
-
-    // No loop – avoids duplicate DOM clones breaking data-pid lookups
-    loop: false,
-
-    a11y: {
-      prevSlideMessage: 'المنتج السابق',
-      nextSlideMessage: 'المنتج التالي',
-    }
+    keyboard: { enabled: true },
+    touchRatio: 1.5,
+    threshold: 5
   });
+}
 
-  // Force layout update after mount
-  swiperInstance.update();
+function escAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+}
+
+/* ── Delegation handler for clicks inside product cards ── */
+function handleProductClick(e) {
+  // Size pill click
+  var pill = e.target.closest('.sz-pill');
+  if (pill) {
+    e.stopPropagation();
+    selectSize(pill);
+    return;
+  }
+
+  // Add-to-cart click
+  var addBtn = e.target.closest('.btn-add');
+  if (addBtn) {
+    e.stopPropagation();
+    var card = addBtn.closest('.product-card');
+    if (card) addToCart(card);
+    return;
+  }
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 4. SIZE VARIANT SELECTION
+//  4. SIZE SELECTION
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Handles a size pill click. Updates the card's DOM data attributes
- * (data-active-price, data-active-size) and the visible price.
- */
 function selectSize(pill) {
-  const card      = pill.closest('.product-card');
-  const selector  = pill.closest('.size-selector');
-  const newPrice  = parseFloat(pill.dataset.vprice);
-  const newSize   = pill.dataset.vsize;
+  var card    = pill.closest('.product-card');
+  var sizes   = pill.closest('.sizes');
+  var newPrice = parseFloat(pill.dataset.vprice);
+  var newSize  = pill.dataset.vsize;
 
-  // Update active pill styling
-  selector.querySelectorAll('.size-pill').forEach(p => p.classList.remove('active'));
+  // Update active pill
+  var pills = sizes.querySelectorAll('.sz-pill');
+  for (var i = 0; i < pills.length; i++) pills[i].classList.remove('active');
   pill.classList.add('active');
 
-  // Store on the card element for addToCart to read
-  card.dataset.activePrice = newPrice;
-  card.dataset.activeSize  = newSize;
+  // Store on card dataset
+  card.dataset.price = newPrice;
+  card.dataset.size  = newSize;
 
-  // Animate the price change
-  const priceEl = card.querySelector('.product-price');
+  // Animate price update
+  var priceEl = card.querySelector('.price');
   priceEl.style.transform = 'scale(1.15)';
-  priceEl.innerHTML = `${newPrice.toFixed(2)} <span class="currency">د.أ</span>`;
-  setTimeout(() => { priceEl.style.transform = 'scale(1)'; }, 200);
+  priceEl.innerHTML = newPrice.toFixed(2) + ' <span class="cur">د.أ</span>';
+  setTimeout(function() { priceEl.style.transform = 'scale(1)'; }, 200);
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 5. ADD TO CART
+//  5. ADD TO CART
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Reads the card's current state from its DOM data attributes
- * and adds (or increments) the item in the global cart.
- */
 function addToCart(card) {
-  const id    = card.dataset.pid;
-  const name  = card.dataset.pname;
-  const image = card.dataset.pimage;
-  const price = parseFloat(card.dataset.activePrice);
-  const size  = card.dataset.activeSize || '';
+  var id    = card.dataset.pid;
+  var name  = card.dataset.pname;
+  var image = card.dataset.pimage;
+  var price = parseFloat(card.dataset.price);
+  var size  = card.dataset.size || '';
 
-  // Check for existing identical item
-  const existing = cart.find(i => i.id === id && i.size === size);
+  // Check existing
+  var existing = null;
+  for (var i = 0; i < cart.length; i++) {
+    if (cart[i].id === id && cart[i].size === size) { existing = cart[i]; break; }
+  }
+
   if (existing) {
     existing.qty++;
   } else {
-    cart.push({ id, name, size, price, qty: 1, image });
+    cart.push({ id: id, name: name, size: size, price: price, qty: 1, image: image });
   }
 
-  // Fly-to-cart animation
-  const imgEl = card.querySelector('.product-image');
+  // Animation
+  var imgEl = card.querySelector('.img-wrap img');
   if (imgEl) flyToCart(imgEl);
 
-  updateCartUI();
+  syncCartBar();
   showToast();
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 6. FLY-TO-CART ANIMATION
+//  6. FLY-TO-CART ANIMATION
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Clones the product image as a small circle and animates it
- * along a parabolic arc to the cart icon in the bottom bar.
- */
 function flyToCart(imgEl) {
-  const imgRect  = imgEl.getBoundingClientRect();
-  const cartEl   = document.getElementById('cart-icon-wrapper');
-  const cartRect = cartEl.getBoundingClientRect();
+  var imgR = imgEl.getBoundingClientRect();
+  var cartW = document.getElementById('cart-icon-wrap');
+  var cartR = cartW.getBoundingClientRect();
 
-  // Start position: center of the image
-  const startX = imgRect.left + imgRect.width / 2 - 30;
-  const startY = imgRect.top  + imgRect.height / 2 - 30;
+  var startX = imgR.left + imgR.width / 2 - 28;
+  var startY = imgR.top + imgR.height / 2 - 28;
+  var endX   = cartR.left + cartR.width / 2 - 8;
+  var endY   = cartR.top + cartR.height / 2 - 8;
+  var midX   = (startX + endX) / 2;
+  var midY   = Math.min(startY, endY) - 80;
 
-  // End position: center of cart icon
-  const endX = cartRect.left + cartRect.width / 2 - 10;
-  const endY = cartRect.top  + cartRect.height / 2 - 10;
-
-  // Create clone
-  const clone = document.createElement('img');
-  clone.src       = imgEl.src;
+  var clone = document.createElement('img');
+  clone.src = imgEl.src;
   clone.className = 'fly-clone';
-  clone.style.width  = '60px';
-  clone.style.height = '60px';
+  clone.style.width  = '56px';
+  clone.style.height = '56px';
   clone.style.left   = startX + 'px';
   clone.style.top    = startY + 'px';
-  clone.style.opacity = '1';
   document.body.appendChild(clone);
 
-  // Animate using Web Animations API for smooth parabolic path
-  const duration = 650;
-  const midX = (startX + endX) / 2;
-  const midY = Math.min(startY, endY) - 80; // Arc peak above both points
-
   clone.animate([
-    { left: startX + 'px', top: startY + 'px', width: '60px', height: '60px', opacity: 1 },
-    { left: midX   + 'px', top: midY   + 'px', width: '40px', height: '40px', opacity: 0.85, offset: 0.5 },
-    { left: endX   + 'px', top: endY   + 'px', width: '20px', height: '20px', opacity: 0 }
+    { left: startX + 'px', top: startY + 'px', width: '56px', height: '56px', opacity: 1 },
+    { left: midX + 'px', top: midY + 'px', width: '36px', height: '36px', opacity: .85, offset: .5 },
+    { left: endX + 'px', top: endY + 'px', width: '16px', height: '16px', opacity: 0 }
   ], {
-    duration,
-    easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    duration: 620,
+    easing: 'cubic-bezier(.4,0,.2,1)',
     fill: 'forwards'
   });
 
-  // Bounce the cart icon on arrival
-  setTimeout(() => {
-    cartEl.classList.remove('bounce');
-    void cartEl.offsetWidth; // reflow
-    cartEl.classList.add('bounce');
+  setTimeout(function() {
+    cartW.classList.remove('bounce');
+    void cartW.offsetWidth;
+    cartW.classList.add('bounce');
     clone.remove();
-  }, duration);
+  }, 620);
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 7. CART STATE & UI
+//  7. CART BAR SYNC
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Syncs all cart-related UI elements with the current cart state.
- */
-function updateCartUI() {
-  const totalQty   = cart.reduce((s, i) => s + i.qty, 0);
-  const totalPrice = cart.reduce((s, i) => s + i.price * i.qty, 0);
+function syncCartBar() {
+  var totalQty = 0, totalPrice = 0;
+  for (var i = 0; i < cart.length; i++) {
+    totalQty   += cart[i].qty;
+    totalPrice += cart[i].price * cart[i].qty;
+  }
 
-  // Badge
-  const badge = document.getElementById('cart-badge');
+  var badge = document.getElementById('cart-badge');
   badge.textContent = totalQty;
-  badge.classList.remove('pulse');
+  badge.classList.remove('pop');
   void badge.offsetWidth;
-  badge.classList.add('pulse');
+  badge.classList.add('pop');
 
-  // Totals
-  document.getElementById('cart-bar-total').textContent   = totalPrice.toFixed(2) + ' د.أ';
-  document.getElementById('cart-total-price').textContent  = totalPrice.toFixed(2) + ' د.أ';
-
-  // Footer visibility
-  document.getElementById('cart-drawer-footer').style.display = totalQty > 0 ? 'block' : 'none';
+  document.getElementById('cart-bar-total').textContent = totalPrice.toFixed(2) + ' د.أ';
+  document.getElementById('cart-total').textContent     = totalPrice.toFixed(2) + ' د.أ';
+  document.getElementById('cart-footer').style.display  = totalQty > 0 ? 'block' : 'none';
 }
 
-/**
- * Renders the cart items list inside the drawer body.
- */
+
+// ═══════════════════════════════════════════════════════════════════
+//  8. CART DRAWER
+// ═══════════════════════════════════════════════════════════════════
+
+function openDrawer() {
+  showCartView(); // always start on cart view
+  renderCartItems();
+  syncCartBar();
+  document.getElementById('cart-drawer').classList.add('open');
+  document.getElementById('cart-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+  document.getElementById('cart-drawer').classList.remove('open');
+  document.getElementById('cart-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function showCartView() {
+  document.getElementById('cart-view').style.display = 'flex';
+  document.getElementById('whatsapp-view').style.display = 'none';
+}
+
+function showWhatsAppView() {
+  if (cart.length === 0) return;
+  document.getElementById('cart-view').style.display = 'none';
+  document.getElementById('whatsapp-view').style.display = 'flex';
+}
+
 function renderCartItems() {
-  const $body = document.getElementById('cart-drawer-body');
+  var container = document.getElementById('cart-items-container');
 
   if (cart.length === 0) {
-    $body.innerHTML = `
-      <div class="cart-empty-state">
-        <i class="fa-solid fa-basket-shopping"></i>
-        <p>السلة فارغة</p>
-        <span>أضف بعض الأطباق الشهية!</span>
-      </div>`;
+    container.innerHTML =
+      '<div class="cart-empty">' +
+        '<i class="fa-solid fa-basket-shopping"></i>' +
+        '<p>السلة فارغة</p>' +
+        '<span>أضف بعض الأطباق الشهية!</span>' +
+      '</div>';
     return;
   }
 
-  const fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%231C1917' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23C47D4C' font-size='32'%3E🍽️%3C/text%3E%3C/svg%3E";
+  var html = '';
+  for (var i = 0; i < cart.length; i++) {
+    var item = cart[i];
+    var lineTotal = (item.price * item.qty).toFixed(2);
+    var sizeLabel = item.size ? '<div class="ci-size">' + item.size + '</div>' : '';
 
-  $body.innerHTML = cart.map((item, idx) => `
-    <div class="cart-item">
-      <img class="cart-item-image" src="${item.image || fallback}" alt="${item.name}"
-           onerror="this.onerror=null;this.src='${fallback}'" />
-      <div class="cart-item-details">
-        <div class="cart-item-name">${item.name}</div>
-        ${item.size ? `<div class="cart-item-variant">${item.size}</div>` : ''}
-        <div class="cart-item-controls">
-          ${item.qty === 1
-            ? `<button class="qty-btn delete" data-action="remove" data-idx="${idx}" aria-label="حذف"><i class="fa-solid fa-trash-can"></i></button>`
-            : `<button class="qty-btn" data-action="dec" data-idx="${idx}" aria-label="تقليل">−</button>`
-          }
-          <span class="cart-item-qty">${item.qty}</span>
-          <button class="qty-btn" data-action="inc" data-idx="${idx}" aria-label="زيادة">+</button>
-        </div>
-      </div>
-      <div class="cart-item-price">${(item.price * item.qty).toFixed(2)} د.أ</div>
-    </div>
-  `).join('');
+    var decBtn;
+    if (item.qty === 1) {
+      decBtn = '<button class="q-btn del" data-action="remove" data-idx="' + i + '"><i class="fa-solid fa-trash-can"></i></button>';
+    } else {
+      decBtn = '<button class="q-btn" data-action="dec" data-idx="' + i + '">−</button>';
+    }
 
-  // Event delegation for quantity buttons
-  $body.onclick = e => {
-    const btn = e.target.closest('[data-action]');
+    html +=
+      '<div class="cart-item">' +
+        '<img class="ci-img" src="' + (item.image || FALLBACK_IMG) + '" alt="' + escAttr(item.name) + '" onerror="this.onerror=null;this.src=\'' + FALLBACK_IMG + '\'">' +
+        '<div class="ci-details">' +
+          '<div class="ci-name">' + item.name + '</div>' +
+          sizeLabel +
+          '<div class="ci-controls">' +
+            decBtn +
+            '<span class="ci-qty">' + item.qty + '</span>' +
+            '<button class="q-btn" data-action="inc" data-idx="' + i + '">+</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ci-price">' + lineTotal + ' د.أ</div>' +
+      '</div>';
+  }
+  container.innerHTML = html;
+
+  // Delegation for qty buttons
+  container.onclick = function(e) {
+    var btn = e.target.closest('[data-action]');
     if (!btn) return;
-    const idx    = parseInt(btn.dataset.idx);
-    const action = btn.dataset.action;
+    var idx = parseInt(btn.dataset.idx);
+    var action = btn.dataset.action;
 
-    if (action === 'inc')    { cart[idx].qty++; }
-    else if (action === 'dec') { cart[idx].qty--; if (cart[idx].qty <= 0) cart.splice(idx, 1); }
-    else if (action === 'remove') { cart.splice(idx, 1); }
+    if (action === 'inc') {
+      cart[idx].qty++;
+    } else if (action === 'dec') {
+      cart[idx].qty--;
+      if (cart[idx].qty <= 0) cart.splice(idx, 1);
+    } else if (action === 'remove') {
+      cart.splice(idx, 1);
+    }
 
     renderCartItems();
-    updateCartUI();
+    syncCartBar();
   };
 }
 
 
 // ═══════════════════════════════════════════════════════════════════
-// 8. CART DRAWER TOGGLE
+//  9. TOAST
 // ═══════════════════════════════════════════════════════════════════
 
-function toggleCartDrawer() {
-  const drawer  = document.getElementById('cart-drawer');
-  const overlay = document.getElementById('cart-overlay');
-  const isOpen  = drawer.classList.contains('open');
-
-  if (isOpen) {
-    drawer.classList.remove('open');
-    overlay.classList.remove('open');
-    document.body.style.overflow = '';
-  } else {
-    renderCartItems();
-    updateCartUI();
-    drawer.classList.add('open');
-    overlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-}
-
-
-// ═══════════════════════════════════════════════════════════════════
-// 9. TOAST NOTIFICATION
-// ═══════════════════════════════════════════════════════════════════
-
-let _toastTimer;
+var _toastTimer;
 function showToast() {
-  const t = document.getElementById('toast');
+  var t = document.getElementById('toast');
   clearTimeout(_toastTimer);
   t.classList.add('show');
-  _toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+  _toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2000);
 }
 
 
@@ -614,61 +585,33 @@ function showToast() {
 // 10. WHATSAPP DISPATCHER
 // ═══════════════════════════════════════════════════════════════════
 
-function openWhatsAppModal() {
-  if (!cart.length) return;
-
-  // Close cart drawer first
-  toggleCartDrawer();
-
-  setTimeout(() => {
-    document.getElementById('whatsapp-modal').classList.add('open');
-    document.getElementById('whatsapp-overlay').classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }, 350);
-}
-
-function closeWhatsAppModal() {
-  document.getElementById('whatsapp-modal').classList.remove('open');
-  document.getElementById('whatsapp-overlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-/**
- * Builds the WhatsApp message, URL-encodes it, and opens wa.me.
- */
 function sendWhatsApp(person) {
-  const { number, greeting } = WHATSAPP[person];
+  if (cart.length === 0) return;
 
-  const lines = cart.map(item => {
-    const sizeLabel = item.size ? ` (${item.size})` : '';
-    const lineTotal = (item.price * item.qty).toFixed(2);
-    return `• ${item.name}${sizeLabel} × ${item.qty} = ${lineTotal} د.أ`;
-  });
+  var rep = REPS[person];
+  var lines = '';
+  var total = 0;
 
-  const total = cart.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2);
+  for (var i = 0; i < cart.length; i++) {
+    var item = cart[i];
+    var sizeLabel = item.size ? ' (' + item.size + ')' : '';
+    var lineTotal = (item.price * item.qty).toFixed(2);
+    total += item.price * item.qty;
+    lines += '• ' + item.name + sizeLabel + ' × ' + item.qty + ' = ' + lineTotal + ' د.أ\n';
+  }
 
-  const msg = [
-    greeting,
-    'عندي طلب جديد من الموقع:',
-    '',
-    '📋 تفاصيل الطلب:',
-    ...lines,
-    '',
-    `💵 المجموع الكلي: ${total} د.أ`,
-    '🚚 رسوم التوصيل: مجاناً'
-  ].join('\n');
+  var msg = rep.greeting + '\n' +
+    'عندي طلب جديد من الموقع:\n\n' +
+    '📋 تفاصيل الطلب:\n' +
+    lines + '\n' +
+    '💵 المجموع الكلي: ' + total.toFixed(2) + ' د.أ\n' +
+    '🚚 رسوم التوصيل: مجاناً';
 
-  window.open(`https://wa.me/${number}?text=${encodeURIComponent(msg)}`, '_blank');
+  var url = 'https://wa.me/' + rep.phone + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
 
   // Reset
-  closeWhatsAppModal();
+  closeDrawer();
   cart = [];
-  updateCartUI();
+  syncCartBar();
 }
-
-
-// ═══════════════════════════════════════════════════════════════════
-// 11. BOOT
-// ═══════════════════════════════════════════════════════════════════
-
-document.addEventListener('DOMContentLoaded', fetchProducts);
