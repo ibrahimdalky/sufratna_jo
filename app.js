@@ -8,8 +8,27 @@
 
   /* ──────────── CONSTANTS ──────────── */
 
-  var CSV_RAW_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
-  var FETCH_URL = 'https://corsproxy.io/?url=' + encodeURIComponent(CSV_RAW_URL);
+  var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
+
+  async function fetchCSV() {
+    var proxies = [
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(CSV_URL),
+      'https://corsproxy.io/?url=' + encodeURIComponent(CSV_URL),
+      'https://proxy.cors.sh/' + CSV_URL
+    ];
+    for (var i = 0; i < proxies.length; i++) {
+      try {
+        var res = await fetch(proxies[i], { cache: 'no-store' });
+        if (res.ok) {
+          var text = await res.text();
+          if (text.includes(',')) return text;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    throw new Error('All proxies failed');
+  }
 
   var PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
 
@@ -193,8 +212,7 @@
     $errorState.style.display = 'none';
     $productSwiper.style.display = 'none';
 
-    fetch(FETCH_URL)
-      .then(function (res) { return res.text(); })
+    fetchCSV()
       .then(function (text) { handleCSV(text); })
       .catch(function (err) {
         console.error('CSV fetch failed:', err);
