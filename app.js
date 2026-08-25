@@ -31,13 +31,16 @@
 
   function fetchCSV() {
     var encoded = encodeURIComponent(CSV_URL);
-    var proxies = [
+    // Try direct URL first (fastest, works on most browsers when page is HTTPS)
+    // Then race all proxies simultaneously as fallback
+    var allUrls = [
+      CSV_URL,
       'https://api.allorigins.win/raw?url=' + encoded,
       'https://corsproxy.io/?url=' + encoded,
       'https://thingproxy.freeboard.io/fetch/' + CSV_URL,
       'https://yacdn.org/serve/' + CSV_URL
     ];
-    return Promise.any(proxies.map(function (url) { return fetchWithProxy(url); }));
+    return Promise.any(allUrls.map(function (url) { return fetchWithProxy(url); }));
   }
 
   var PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
@@ -821,7 +824,7 @@
           generateWhatsAppMessage('إبراهيم', '962787364679');
           break;
         case 'rep-rakan':
-          generateWhatsAppMessage('ركان', '96278929001');
+          generateWhatsAppMessage('ركان', '962789290001');
           break;
         case 'back-to-cart':
           renderDrawerCart();
