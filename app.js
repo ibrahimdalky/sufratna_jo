@@ -1,62 +1,65 @@
 /* ============================================
    سفرتنا — APP.JS — COMPLETE APPLICATION LOGIC
+   Rewritten from scratch against real CSV data
    ============================================ */
 
 (function () {
   'use strict';
 
-  /* ---------- CONSTANTS ---------- */
-  const CSV_URL =
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
+  /* ──────────── CONSTANTS ──────────── */
 
-  const PLACEHOLDER_SVG =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
+  var CSV_RAW_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
+  var FETCH_URL = 'https://corsproxy.io/?url=' + encodeURIComponent(CSV_RAW_URL);
 
-  const WHATSAPP_SVG = `<svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
+  var PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
 
-  /* ---------- STATE ---------- */
-  let allProducts = [];
-  let filteredProducts = [];
-  let categories = [];
-  let activeCategory = 'الكل';
-  let cart = [];
-  let swiperInstance = null;
-  let logoUrl = '';
+  var WHATSAPP_SVG = '<svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>';
 
-  /* ---------- DOM REFS ---------- */
-  const $canvas = document.getElementById('particleCanvas');
-  const $skeletonLoader = document.getElementById('skeletonLoader');
-  const $errorState = document.getElementById('errorState');
-  const $retryBtn = document.getElementById('retryBtn');
-  const $productSwiper = document.getElementById('productSwiper');
-  const $swiperWrapper = document.getElementById('swiperWrapper');
-  const $categoryScroll = document.getElementById('categoryScroll');
-  const $cartBadge = document.getElementById('cartBadge');
-  const $cartBarText = document.getElementById('cartBarText');
-  const $cartBarTotal = document.getElementById('cartBarTotal');
-  const $cartBar = document.getElementById('cartBar');
-  const $drawerOverlay = document.getElementById('drawerOverlay');
-  const $drawerContent = document.getElementById('drawerContent');
-  const $toastContainer = document.getElementById('toastContainer');
-  const $brandLogo = document.getElementById('brandLogo');
-  const $logoPlaceholder = document.getElementById('logoPlaceholder');
+  /* ──────────── STATE ──────────── */
 
-  /* ==========================================
-     PARTICLE BACKGROUND
-     ========================================== */
-  (function initParticles() {
-    const ctx = $canvas.getContext('2d');
-    let particles = [];
-    const PARTICLE_COUNT = 60;
+  var allProducts = [];
+  var filteredProducts = [];
+  var categories = [];
+  var activeCategory = 'الكل';
+  var cart = [];
+  var swiperInstance = null;
+
+  /* ──────────── DOM REFERENCES ──────────── */
+
+  var $canvas         = document.getElementById('particleCanvas');
+  var $skeletonLoader = document.getElementById('skeletonLoader');
+  var $errorState     = document.getElementById('errorState');
+  var $retryBtn       = document.getElementById('retryBtn');
+  var $productSwiper  = document.getElementById('productSwiper');
+  var $swiperWrapper  = document.getElementById('swiperWrapper');
+  var $categoryScroll = document.getElementById('categoryScroll');
+  var $cartBadge      = document.getElementById('cartBadge');
+  var $cartBarText    = document.getElementById('cartBarText');
+  var $cartBarTotal   = document.getElementById('cartBarTotal');
+  var $cartBar        = document.getElementById('cartBar');
+  var $drawerOverlay  = document.getElementById('drawerOverlay');
+  var $drawerContent  = document.getElementById('drawerContent');
+  var $toastContainer = document.getElementById('toastContainer');
+  var $brandLogo      = document.getElementById('brandLogo');
+  var $logoPlaceholder = document.getElementById('logoPlaceholder');
+
+  /* ══════════════════════════════════════════
+     1. PARTICLE BACKGROUND
+     ══════════════════════════════════════════ */
+
+  (function () {
+    var ctx = $canvas.getContext('2d');
+    var particles = [];
+    var COUNT = 60;
 
     function resize() {
       $canvas.width = window.innerWidth;
       $canvas.height = window.innerHeight;
     }
 
-    function createParticles() {
+    function seed() {
       particles = [];
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
+      for (var i = 0; i < COUNT; i++) {
         particles.push({
           x: Math.random() * $canvas.width,
           y: Math.random() * $canvas.height,
@@ -65,14 +68,15 @@
           dy: (Math.random() - 0.5) * 0.4,
           opacity: Math.random() * 0.3 + 0.1,
           opDir: Math.random() > 0.5 ? 1 : -1,
-          isGold: Math.random() > 0.5,
+          isGold: Math.random() > 0.5
         });
       }
     }
 
-    function draw() {
+    function loop() {
       ctx.clearRect(0, 0, $canvas.width, $canvas.height);
-      particles.forEach(function (p) {
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
         p.x += p.dx;
         p.y += p.dy;
         p.opacity += p.opDir * 0.003;
@@ -88,99 +92,231 @@
           ? 'rgba(229,169,60,' + p.opacity + ')'
           : 'rgba(196,125,76,' + p.opacity + ')';
         ctx.fill();
-      });
-      requestAnimationFrame(draw);
+      }
+      requestAnimationFrame(loop);
     }
 
     resize();
-    createParticles();
-    draw();
-    window.addEventListener('resize', function () {
-      resize();
-      createParticles();
-    });
+    seed();
+    loop();
+    window.addEventListener('resize', function () { resize(); seed(); });
   })();
 
-  /* ==========================================
-     CSV FETCH & PARSE
-     ========================================== */
+  /* ══════════════════════════════════════════
+     2. HELPERS
+     ══════════════════════════════════════════ */
+
+  function escapeHTML(str) {
+    if (!str) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  /**
+   * Extract a real image URL from an ImgBB HTML snippet or return as-is if
+   * already a plain URL.
+   *
+   * Real CSV cells look like:
+   *   <a href="https://ibb.co/..."><img src="https://i.ibb.co/…/file.jpg" …/></a>
+   *
+   * Inside the Google Sheets CSV export, quotes within a quoted field are
+   * doubled (""), so after our CSV row parser un-doubles them we receive
+   * standard HTML that this regex can match.
+   */
+  function extractImageUrl(raw) {
+    if (!raw) return '';
+    var s = raw.trim();
+    // Already a direct URL
+    if (s.indexOf('<') === -1 && (s.indexOf('http://') === 0 || s.indexOf('https://') === 0)) {
+      return s;
+    }
+    // Extract src="..." from HTML
+    var m = s.match(/src=["']([^"']+)["']/i);
+    return m ? m[1] : '';
+  }
+
+  /* ══════════════════════════════════════════
+     3. CSV ROW PARSER
+     Handles quoted fields, doubled-quote escapes,
+     embedded commas and newlines within quotes.
+     ══════════════════════════════════════════ */
+
+  function parseCSVRow(row) {
+    var result = [];
+    var cur = '';
+    var inQ = false;
+    for (var i = 0; i < row.length; i++) {
+      var ch = row[i];
+      if (inQ) {
+        if (ch === '"') {
+          if (i + 1 < row.length && row[i + 1] === '"') {
+            cur += '"';
+            i++; // skip doubled quote
+          } else {
+            inQ = false;
+          }
+        } else {
+          cur += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQ = true;
+        } else if (ch === ',') {
+          result.push(cur);
+          cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+    }
+    result.push(cur);
+    return result;
+  }
+
+  /* ══════════════════════════════════════════
+     4. CSV FETCH & PARSE
+     ══════════════════════════════════════════ */
+
   function fetchProducts() {
     $skeletonLoader.style.display = 'grid';
     $errorState.style.display = 'none';
     $productSwiper.style.display = 'none';
 
-    fetch(CSV_URL)
-      .then(function (r) { return r.text(); })
-      .then(function (csv) { parseCSV(csv); })
-      .catch(function () {
+    fetch(FETCH_URL)
+      .then(function (res) { return res.text(); })
+      .then(function (text) { handleCSV(text); })
+      .catch(function (err) {
+        console.error('CSV fetch failed:', err);
         $skeletonLoader.style.display = 'none';
         $errorState.style.display = 'block';
       });
   }
 
-  function parseCSV(csvText) {
-    var lines = csvText.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-    if (lines.length < 2) {
+  function handleCSV(csvText) {
+    // Split into lines, keep content, trim whitespace
+    var rawLines = csvText.split('\n');
+    var lines = [];
+    for (var i = 0; i < rawLines.length; i++) {
+      var t = rawLines[i].replace(/\r$/, '');
+      lines.push(t);
+    }
+
+    /*
+     * CRITICAL: The real spreadsheet has empty rows before the header.
+     * We must find the header row dynamically by looking for the line
+     * that starts with "id,name" (the known header pattern).
+     */
+    var headerIdx = -1;
+    for (var i = 0; i < lines.length; i++) {
+      var lower = lines[i].trim().toLowerCase();
+      if (lower.indexOf('id') === 0 && lower.indexOf('name') !== -1) {
+        headerIdx = i;
+        break;
+      }
+    }
+
+    if (headerIdx === -1 || headerIdx >= lines.length - 1) {
       $skeletonLoader.style.display = 'none';
       $errorState.style.display = 'block';
       return;
     }
 
-    var headers = parseCSVRow(lines[0]);
-    var colMap = {};
-    headers.forEach(function (h, i) { colMap[h.trim().toLowerCase()] = i; });
+    // Build column map from header
+    var headers = parseCSVRow(lines[headerIdx]);
+    var col = {};
+    for (var i = 0; i < headers.length; i++) {
+      col[headers[i].trim().toLowerCase()] = i;
+    }
 
-    /* logo from first data row */
-    var firstDataRow = parseCSVRow(lines[1]);
-    if (colMap['logo'] !== undefined || colMap['logo'] !== undefined) {
-      var logoIdx = colMap['logo'];
-      if (logoIdx !== undefined && firstDataRow[logoIdx]) {
-        logoUrl = firstDataRow[logoIdx].trim();
-        loadLogo(logoUrl);
+    // Validate required columns exist
+    var required = ['id', 'name', 'category', 'base_price', 'description', 'image_url', 'sizes_and_prices', 'is_available'];
+    for (var r = 0; r < required.length; r++) {
+      if (col[required[r]] === undefined) {
+        console.error('Missing column:', required[r], '| Found headers:', headers);
+        $skeletonLoader.style.display = 'none';
+        $errorState.style.display = 'block';
+        return;
       }
     }
 
+    // Logo from first data row
+    var firstRow = parseCSVRow(lines[headerIdx + 1]);
+    if (col['logo'] !== undefined && firstRow[col['logo']]) {
+      var logoSrc = extractImageUrl(firstRow[col['logo']]);
+      if (logoSrc) loadLogo(logoSrc);
+    }
+
+    // Parse all data rows
     var products = [];
-    var catSet = new Set();
+    var catSet = {};
 
-    for (var i = 1; i < lines.length; i++) {
-      var cols = parseCSVRow(lines[i]);
-      if (cols.length < headers.length) continue;
+    for (var i = headerIdx + 1; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
 
-      var available = (cols[colMap['is_available']] || '').trim().toUpperCase();
-      if (available !== 'TRUE') continue;
+      var c = parseCSVRow(line);
 
-      var sizesRaw = (cols[colMap['sizes_and_prices']] || '').trim();
+      // is_available must be TRUE
+      var avail = (c[col['is_available']] || '').trim().toUpperCase();
+      if (avail !== 'TRUE') continue;
+
+      // Parse sizes_and_prices: "وسط=2.5, كبير=4"
+      var sizesRaw = (c[col['sizes_and_prices']] || '').trim();
       var sizes = [];
       if (sizesRaw && sizesRaw !== '-') {
-        sizesRaw.split(',').forEach(function (chunk) {
-          var parts = chunk.trim().split('=');
-          if (parts.length === 2) {
-            sizes.push({ label: parts[0].trim(), price: parseFloat(parts[1].trim()) || 0 });
+        var chunks = sizesRaw.split(',');
+        for (var j = 0; j < chunks.length; j++) {
+          var part = chunks[j].trim();
+          if (!part) continue;
+          var eqIdx = part.indexOf('=');
+          if (eqIdx !== -1) {
+            var label = part.substring(0, eqIdx).trim();
+            var price = parseFloat(part.substring(eqIdx + 1).trim());
+            if (label && !isNaN(price)) {
+              sizes.push({ label: label, price: price });
+            }
           }
-        });
+        }
       }
 
-      var basePrice = parseFloat(cols[colMap['base_price']]) || 0;
-      var category = (cols[colMap['category']] || '').trim();
-      if (category) catSet.add(category);
+      var basePrice = parseFloat(c[col['base_price']]) || 0;
+      var category = (c[col['category']] || '').trim();
+      if (category) catSet[category] = true;
+
+      var imgUrl = extractImageUrl(c[col['image_url']]);
 
       products.push({
-        id: (cols[colMap['id']] || '').trim(),
-        name: (cols[colMap['name']] || '').trim(),
+        id: (c[col['id']] || '').trim(),
+        name: (c[col['name']] || '').trim(),
         category: category,
         base_price: basePrice,
         sizes: sizes,
-        image_url: (cols[colMap['image_url']] || '').trim(),
-        description: (cols[colMap['description']] || '').trim(),
+        image_url: imgUrl,
+        description: (c[col['description']] || '').trim(),
         selectedSize: sizes.length > 0 ? sizes[0] : null,
-        selectedPrice: sizes.length > 0 ? sizes[0].price : basePrice,
-        quantity: 0,
+        selectedPrice: sizes.length > 0 ? sizes[0].price : basePrice
       });
     }
 
+    if (products.length === 0) {
+      $skeletonLoader.style.display = 'none';
+      $errorState.style.display = 'block';
+      return;
+    }
+
     allProducts = products;
-    categories = Array.from(catSet);
+    categories = Object.keys(catSet);
     filteredProducts = allProducts.slice();
 
     renderCategories();
@@ -190,40 +326,8 @@
     $productSwiper.style.display = 'block';
   }
 
-  /* Robust CSV row parser — handles quoted fields with commas */
-  function parseCSVRow(row) {
-    var result = [];
-    var current = '';
-    var inQuotes = false;
-    for (var i = 0; i < row.length; i++) {
-      var ch = row[i];
-      if (inQuotes) {
-        if (ch === '"') {
-          if (i + 1 < row.length && row[i + 1] === '"') {
-            current += '"';
-            i++;
-          } else {
-            inQuotes = false;
-          }
-        } else {
-          current += ch;
-        }
-      } else {
-        if (ch === '"') {
-          inQuotes = true;
-        } else if (ch === ',') {
-          result.push(current);
-          current = '';
-        } else {
-          current += ch;
-        }
-      }
-    }
-    result.push(current);
-    return result;
-  }
+  /* ──────────── LOGO ──────────── */
 
-  /* ---------- LOGO ---------- */
   function loadLogo(url) {
     if (!url) return;
     var img = new Image();
@@ -233,20 +337,19 @@
       $brandLogo.style.display = 'block';
       $logoPlaceholder.style.display = 'none';
     };
-    img.onerror = function () {
-      /* keep placeholder */
-    };
+    img.onerror = function () { /* keep placeholder */ };
     img.src = url;
   }
 
-  /* ==========================================
-     CATEGORIES
-     ========================================== */
+  /* ══════════════════════════════════════════
+     5. CATEGORIES
+     ══════════════════════════════════════════ */
+
   function renderCategories() {
     var html = '<button class="cat-pill active" data-cat="الكل">الكل</button>';
-    categories.forEach(function (cat) {
-      html += '<button class="cat-pill" data-cat="' + escapeAttr(cat) + '">' + escapeHTML(cat) + '</button>';
-    });
+    for (var i = 0; i < categories.length; i++) {
+      html += '<button class="cat-pill" data-cat="' + escapeAttr(categories[i]) + '">' + escapeHTML(categories[i]) + '</button>';
+    }
     $categoryScroll.innerHTML = html;
   }
 
@@ -257,63 +360,79 @@
     if (cat === activeCategory) return;
 
     activeCategory = cat;
-    $categoryScroll.querySelectorAll('.cat-pill').forEach(function (p) { p.classList.remove('active'); });
+    var pills = $categoryScroll.querySelectorAll('.cat-pill');
+    for (var i = 0; i < pills.length; i++) pills[i].classList.remove('active');
     pill.classList.add('active');
 
     if (cat === 'الكل') {
       filteredProducts = allProducts.slice();
     } else {
-      filteredProducts = allProducts.filter(function (p) { return p.category === cat; });
+      filteredProducts = [];
+      for (var i = 0; i < allProducts.length; i++) {
+        if (allProducts[i].category === cat) filteredProducts.push(allProducts[i]);
+      }
     }
     renderProducts();
   });
 
-  /* ==========================================
-     RENDER PRODUCT SLIDES
-     ========================================== */
+  /* ══════════════════════════════════════════
+     6. RENDER PRODUCT SLIDES
+     ══════════════════════════════════════════ */
+
   function renderProducts() {
+    if (filteredProducts.length === 0) {
+      $swiperWrapper.innerHTML = '<div class="swiper-slide"><div class="product-card"><div class="card-body" style="text-align:center;padding:40px 20px;"><p style="color:var(--text-secondary);">لا توجد منتجات في هذا القسم</p></div></div></div>';
+      initSwiper();
+      return;
+    }
+
     var html = '';
-    filteredProducts.forEach(function (product, idx) {
+    for (var idx = 0; idx < filteredProducts.length; idx++) {
+      var p = filteredProducts[idx];
+
+      // Size pills
       var sizesHTML = '';
-      if (product.sizes.length > 0) {
+      if (p.sizes.length > 0) {
         sizesHTML = '<div class="size-selector">';
-        product.sizes.forEach(function (s, si) {
-          var activeClass = si === 0 ? ' active' : '';
-          sizesHTML += '<button class="size-pill' + activeClass + '" data-idx="' + idx + '" data-size-idx="' + si + '">' + escapeHTML(s.label) + '</button>';
-        });
+        for (var si = 0; si < p.sizes.length; si++) {
+          var act = si === 0 ? ' active' : '';
+          sizesHTML += '<button class="size-pill' + act + '" data-idx="' + idx + '" data-si="' + si + '">' + escapeHTML(p.sizes[si].label) + '</button>';
+        }
         sizesHTML += '</div>';
       }
 
-      html += '<div class="swiper-slide" data-idx="' + idx + '">' +
-        '<div class="product-card">' +
-          '<div class="card-image-wrap">' +
-            '<img src="' + escapeAttr(product.image_url) + '" alt="' + escapeAttr(product.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
-            '<div class="card-image-overlay"></div>' +
-          '</div>' +
-          '<div class="card-body">' +
-            '<span class="card-category">' + escapeHTML(product.category) + '</span>' +
-            '<h2 class="card-name">' + escapeHTML(product.name) + '</h2>' +
-            '<p class="card-desc">' + escapeHTML(product.description) + '</p>' +
-            sizesHTML +
-            '<div class="card-price" data-idx="' + idx + '">' +
-              '<span class="price-value">' + product.selectedPrice.toFixed(2) + '</span> ' +
-              '<span class="currency">د.أ</span>' +
+      var imgSrc = p.image_url || PLACEHOLDER_SVG;
+
+      html +=
+        '<div class="swiper-slide" data-idx="' + idx + '">' +
+          '<div class="product-card">' +
+            '<div class="card-image-wrap">' +
+              '<img src="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+              '<div class="card-image-overlay"></div>' +
             '</div>' +
-            '<button class="add-to-cart-btn" data-idx="' + idx + '">' +
-              '🛒 أضف إلى السلة' +
-            '</button>' +
+            '<div class="card-body">' +
+              '<span class="card-category">' + escapeHTML(p.category) + '</span>' +
+              '<h2 class="card-name">' + escapeHTML(p.name) + '</h2>' +
+              '<p class="card-desc">' + escapeHTML(p.description) + '</p>' +
+              sizesHTML +
+              '<div class="card-price" data-idx="' + idx + '">' +
+                '<span class="price-value">' + p.selectedPrice.toFixed(2) + '</span> ' +
+                '<span class="currency">د.أ</span>' +
+              '</div>' +
+              '<button class="add-to-cart-btn" data-idx="' + idx + '">🛒 أضف إلى السلة</button>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-      '</div>';
-    });
+        '</div>';
+    }
 
     $swiperWrapper.innerHTML = html;
     initSwiper();
   }
 
-  /* ==========================================
-     SWIPER INIT
-     ========================================== */
+  /* ══════════════════════════════════════════
+     7. SWIPER INITIALIZATION
+     ══════════════════════════════════════════ */
+
   function initSwiper() {
     if (swiperInstance) {
       swiperInstance.destroy(true, true);
@@ -332,92 +451,97 @@
           stretch: 0,
           depth: 120,
           modifier: 2,
-          slideShadows: false,
+          slideShadows: false
         },
         keyboard: { enabled: true },
         touchRatio: 1.5,
         threshold: 5,
         on: {
           slideChange: function () {
-            updateActiveCardState(this.activeIndex);
-          },
-        },
+            /* placeholder for active-card visual feedback */
+          }
+        }
       });
     }, 50);
   }
 
-  function updateActiveCardState(index) {
-    /* visual feedback can be extended here */
-  }
+  /* ══════════════════════════════════════════
+     8. EVENT DELEGATION — SIZE PILLS & ADD TO CART
+     ══════════════════════════════════════════ */
 
-  /* ==========================================
-     EVENT DELEGATION — SIZE PILLS & ADD TO CART
-     ========================================== */
   $swiperWrapper.addEventListener('click', function (e) {
-    /* Size pill click */
-    var sizePill = e.target.closest('.size-pill');
-    if (sizePill) {
-      var pIdx = parseInt(sizePill.getAttribute('data-idx'), 10);
-      var sIdx = parseInt(sizePill.getAttribute('data-size-idx'), 10);
-      var product = filteredProducts[pIdx];
-      if (!product || !product.sizes[sIdx]) return;
 
-      product.selectedSize = product.sizes[sIdx];
-      product.selectedPrice = product.sizes[sIdx].price;
+    /* ── Size pill click ── */
+    var pill = e.target.closest('.size-pill');
+    if (pill) {
+      var pIdx = parseInt(pill.getAttribute('data-idx'), 10);
+      var sIdx = parseInt(pill.getAttribute('data-si'), 10);
+      var prod = filteredProducts[pIdx];
+      if (!prod || !prod.sizes[sIdx]) return;
 
-      /* Update pill states */
-      var card = sizePill.closest('.product-card');
-      card.querySelectorAll('.size-pill').forEach(function (p) { p.classList.remove('active'); });
-      sizePill.classList.add('active');
+      prod.selectedSize = prod.sizes[sIdx];
+      prod.selectedPrice = prod.sizes[sIdx].price;
 
-      /* Update price display */
+      // Update pill active state
+      var card = pill.closest('.product-card');
+      var allPills = card.querySelectorAll('.size-pill');
+      for (var i = 0; i < allPills.length; i++) allPills[i].classList.remove('active');
+      pill.classList.add('active');
+
+      // Animate price change
       var priceEl = card.querySelector('.card-price .price-value');
       if (priceEl) {
         priceEl.style.opacity = '0.3';
         setTimeout(function () {
-          priceEl.textContent = product.selectedPrice.toFixed(2);
+          priceEl.textContent = prod.selectedPrice.toFixed(2);
           priceEl.style.opacity = '1';
         }, 120);
       }
       return;
     }
 
-    /* Add to cart click */
-    var addBtn = e.target.closest('.add-to-cart-btn');
-    if (addBtn) {
-      var idx = parseInt(addBtn.getAttribute('data-idx'), 10);
-      var product = filteredProducts[idx];
-      if (!product) return;
-      addToCart(product);
+    /* ── Add to cart click ── */
+    var btn = e.target.closest('.add-to-cart-btn');
+    if (btn) {
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      var prod = filteredProducts[idx];
+      if (!prod) return;
 
-      /* Button success state */
-      addBtn.classList.add('success');
-      addBtn.textContent = '✓ تمت الإضافة';
+      addToCart(prod);
+
+      // Success flash
+      btn.classList.add('success');
+      btn.textContent = '✓ تمت الإضافة';
       setTimeout(function () {
-        addBtn.classList.remove('success');
-        addBtn.textContent = '🛒 أضف إلى السلة';
+        btn.classList.remove('success');
+        btn.textContent = '🛒 أضف إلى السلة';
       }, 1200);
 
-      /* Fly to cart animation */
-      var slide = addBtn.closest('.swiper-slide');
+      // Fly-to-cart
+      var slide = btn.closest('.swiper-slide');
       var imgEl = slide ? slide.querySelector('.card-image-wrap img') : null;
-      if (imgEl) {
-        flyToCart(imgEl);
-      }
+      if (imgEl) flyToCart(imgEl);
+
       return;
     }
   });
 
-  /* ==========================================
-     CART SYSTEM
-     ========================================== */
+  /* ══════════════════════════════════════════
+     9. CART SYSTEM
+     ══════════════════════════════════════════ */
+
   function addToCart(product) {
     var sizeLabel = product.selectedSize ? product.selectedSize.label : null;
     var price = product.selectedPrice;
 
-    var existing = cart.find(function (item) {
-      return item.productId === product.id && item.size === sizeLabel;
-    });
+    // Check for existing item with same product + size
+    var existing = null;
+    for (var i = 0; i < cart.length; i++) {
+      if (cart[i].productId === product.id && cart[i].size === sizeLabel) {
+        existing = cart[i];
+        break;
+      }
+    }
 
     if (existing) {
       existing.quantity++;
@@ -428,7 +552,7 @@
         image_url: product.image_url,
         size: sizeLabel,
         price: price,
-        quantity: 1,
+        quantity: 1
       });
     }
 
@@ -437,34 +561,42 @@
   }
 
   function removeFromCart(productId, size) {
-    cart = cart.filter(function (item) {
-      return !(item.productId === productId && item.size === size);
-    });
+    var next = [];
+    for (var i = 0; i < cart.length; i++) {
+      if (!(cart[i].productId === productId && cart[i].size === size)) {
+        next.push(cart[i]);
+      }
+    }
+    cart = next;
     updateCartUI();
     renderDrawerCart();
   }
 
   function updateQuantity(productId, size, delta) {
-    var item = cart.find(function (i) {
-      return i.productId === productId && i.size === size;
-    });
-    if (!item) return;
-
-    item.quantity += delta;
-    if (item.quantity <= 0) {
-      removeFromCart(productId, size);
-      return;
+    for (var i = 0; i < cart.length; i++) {
+      if (cart[i].productId === productId && cart[i].size === size) {
+        cart[i].quantity += delta;
+        if (cart[i].quantity <= 0) {
+          removeFromCart(productId, size);
+          return;
+        }
+        break;
+      }
     }
     updateCartUI();
     renderDrawerCart();
   }
 
   function getCartTotal() {
-    return cart.reduce(function (sum, item) { return sum + item.price * item.quantity; }, 0);
+    var sum = 0;
+    for (var i = 0; i < cart.length; i++) sum += cart[i].price * cart[i].quantity;
+    return sum;
   }
 
   function getCartCount() {
-    return cart.reduce(function (sum, item) { return sum + item.quantity; }, 0);
+    var sum = 0;
+    for (var i = 0; i < cart.length; i++) sum += cart[i].quantity;
+    return sum;
   }
 
   function updateCartUI() {
@@ -475,7 +607,7 @@
       $cartBadge.style.display = 'flex';
       $cartBadge.textContent = count;
       $cartBadge.classList.remove('bounce');
-      void $cartBadge.offsetWidth; /* reflow */
+      void $cartBadge.offsetWidth; // reflow to restart animation
       $cartBadge.classList.add('bounce');
       $cartBarText.innerHTML = 'سلة المشتريات';
       $cartBarTotal.textContent = total.toFixed(2) + ' د.أ';
@@ -486,9 +618,10 @@
     }
   }
 
-  /* ==========================================
-     FLY-TO-CART ANIMATION
-     ========================================== */
+  /* ══════════════════════════════════════════
+     10. FLY-TO-CART ANIMATION
+     ══════════════════════════════════════════ */
+
   function flyToCart(imgEl) {
     var imgRect = imgEl.getBoundingClientRect();
     var barRect = $cartBar.getBoundingClientRect();
@@ -497,19 +630,19 @@
     clone.className = 'fly-clone';
     clone.style.width = '60px';
     clone.style.height = '60px';
-    clone.style.top = imgRect.top + imgRect.height / 2 - 30 + 'px';
-    clone.style.left = imgRect.left + imgRect.width / 2 - 30 + 'px';
+    clone.style.top = (imgRect.top + imgRect.height / 2 - 30) + 'px';
+    clone.style.left = (imgRect.left + imgRect.width / 2 - 30) + 'px';
 
-    var cloneImg = document.createElement('img');
-    cloneImg.src = imgEl.src;
-    clone.appendChild(cloneImg);
+    var cImg = document.createElement('img');
+    cImg.src = imgEl.src;
+    clone.appendChild(cImg);
     document.body.appendChild(clone);
 
-    var targetX = barRect.left + 30 - (imgRect.left + imgRect.width / 2);
-    var targetY = barRect.top + barRect.height / 2 - (imgRect.top + imgRect.height / 2);
+    var dx = barRect.left + 30 - (imgRect.left + imgRect.width / 2);
+    var dy = barRect.top + barRect.height / 2 - (imgRect.top + imgRect.height / 2);
 
     requestAnimationFrame(function () {
-      clone.style.transform = 'translate(' + targetX + 'px, ' + targetY + 'px) scale(0.1)';
+      clone.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.1)';
       clone.style.opacity = '0';
     });
 
@@ -519,30 +652,34 @@
     });
   }
 
-  /* ==========================================
-     TOAST NOTIFICATIONS
-     ========================================== */
+  /* ══════════════════════════════════════════
+     11. TOAST NOTIFICATIONS
+     ══════════════════════════════════════════ */
+
   function showToast(message) {
-    var toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.textContent = message;
-    $toastContainer.appendChild(toast);
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = message;
+    $toastContainer.appendChild(t);
 
     setTimeout(function () {
-      toast.classList.add('fade-out');
+      t.classList.add('fade-out');
       setTimeout(function () {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
+        if (t.parentNode) t.parentNode.removeChild(t);
       }, 350);
     }, 2500);
   }
 
-  /* ==========================================
-     CART DRAWER
-     ========================================== */
+  /* ══════════════════════════════════════════
+     12. CART DRAWER
+     ══════════════════════════════════════════ */
+
+  // Open drawer on cart bar click (whole bar is clickable)
   $cartBar.addEventListener('click', function () {
     openDrawer();
   });
 
+  // Close on overlay click
   $drawerOverlay.addEventListener('click', function (e) {
     if (e.target === $drawerOverlay) closeDrawer();
   });
@@ -563,44 +700,47 @@
       $drawerContent.innerHTML =
         '<div class="drawer-header">' +
           '<span class="drawer-title">سلة المشتريات 🛒</span>' +
-          '<button class="drawer-close" id="drawerCloseBtn">✕</button>' +
+          '<button class="drawer-close" data-action="close">✕</button>' +
         '</div>' +
         '<div class="empty-cart">' +
           '<span class="empty-cart-icon">🛒</span>' +
           '<p class="empty-cart-title">سلتك فارغة</p>' +
           '<p class="empty-cart-sub">أضف بعض المنتجات</p>' +
         '</div>';
-      bindDrawerClose();
+      bindDrawerEvents();
       return;
     }
 
     var itemsHTML = '';
-    cart.forEach(function (item) {
-      var sizeText = item.size ? item.size : '';
+    for (var i = 0; i < cart.length; i++) {
+      var item = cart[i];
+      var sizeText = item.size || '';
       var subtotal = (item.price * item.quantity).toFixed(2);
+      var imgSrc = item.image_url || PLACEHOLDER_SVG;
+
       itemsHTML +=
         '<div class="cart-item-row">' +
-          '<img class="cart-item-thumb" src="' + escapeAttr(item.image_url) + '" alt="" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+          '<img class="cart-item-thumb" src="' + escapeAttr(imgSrc) + '" alt="" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
           '<div class="cart-item-info">' +
             '<div class="cart-item-name">' + escapeHTML(item.name) + '</div>' +
             (sizeText ? '<div class="cart-item-size">' + escapeHTML(sizeText) + '</div>' : '') +
           '</div>' +
           '<div class="cart-item-controls">' +
-            '<button class="delete-btn" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">🗑</button>' +
-            '<button class="qty-btn qty-minus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">−</button>' +
+            '<button class="delete-btn" data-action="delete" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">🗑</button>' +
+            '<button class="qty-btn" data-action="minus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">−</button>' +
             '<span class="qty-value">' + item.quantity + '</span>' +
-            '<button class="qty-btn qty-plus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">+</button>' +
+            '<button class="qty-btn" data-action="plus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">+</button>' +
           '</div>' +
           '<span class="cart-item-subtotal">' + subtotal + ' د.أ</span>' +
         '</div>';
-    });
+    }
 
     var total = getCartTotal().toFixed(2);
 
     $drawerContent.innerHTML =
       '<div class="drawer-header">' +
         '<span class="drawer-title">سلة المشتريات 🛒</span>' +
-        '<button class="drawer-close" id="drawerCloseBtn">✕</button>' +
+        '<button class="drawer-close" data-action="close">✕</button>' +
       '</div>' +
       '<div class="drawer-items">' + itemsHTML + '</div>' +
       '<div class="drawer-footer">' +
@@ -609,124 +749,114 @@
           '<span class="drawer-total-label">المجموع الكلي:</span>' +
           '<span class="drawer-total-value">' + total + ' د.أ</span>' +
         '</div>' +
-        '<button class="checkout-btn" id="checkoutBtn">متابعة الطلب ←</button>' +
+        '<button class="checkout-btn" data-action="checkout">متابعة الطلب ←</button>' +
       '</div>';
 
-    bindDrawerClose();
-    bindDrawerActions();
+    bindDrawerEvents();
   }
 
-  function bindDrawerClose() {
-    var closeBtn = document.getElementById('drawerCloseBtn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        closeDrawer();
-      });
-    }
-  }
-
-  function bindDrawerActions() {
-    /* Qty +/- and delete via delegation on drawer content */
+  /**
+   * Single event-delegation handler for all drawer buttons.
+   * Uses data-action attributes instead of IDs to avoid rebinding issues.
+   */
+  function bindDrawerEvents() {
     $drawerContent.onclick = function (e) {
-      var target = e.target.closest('button');
-      if (!target) return;
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
 
-      var pid = target.getAttribute('data-pid');
-      var size = target.getAttribute('data-size') || null;
+      var action = btn.getAttribute('data-action');
+      var pid = btn.getAttribute('data-pid') || '';
+      var size = btn.getAttribute('data-size');
       if (size === '') size = null;
 
-      if (target.classList.contains('qty-plus')) {
-        updateQuantity(pid, size, 1);
-      } else if (target.classList.contains('qty-minus')) {
-        updateQuantity(pid, size, -1);
-      } else if (target.classList.contains('delete-btn')) {
-        removeFromCart(pid, size);
-      } else if (target.id === 'checkoutBtn') {
-        showRepSelection();
-      } else if (target.id === 'drawerCloseBtn') {
-        e.stopPropagation();
-        closeDrawer();
+      switch (action) {
+        case 'close':
+          e.stopPropagation();
+          closeDrawer();
+          break;
+        case 'plus':
+          updateQuantity(pid, size, 1);
+          break;
+        case 'minus':
+          updateQuantity(pid, size, -1);
+          break;
+        case 'delete':
+          removeFromCart(pid, size);
+          break;
+        case 'checkout':
+          showRepSelection();
+          break;
+        case 'rep-ibrahim':
+          generateWhatsAppMessage('إبراهيم', '962787364679');
+          break;
+        case 'rep-rakan':
+          generateWhatsAppMessage('ركان', '96278929001');
+          break;
+        case 'back-to-cart':
+          renderDrawerCart();
+          break;
       }
     };
   }
 
-  /* ==========================================
-     REP SELECTION (WHATSAPP)
-     ========================================== */
+  /* ══════════════════════════════════════════
+     13. WHATSAPP REP SELECTION
+     ══════════════════════════════════════════ */
+
   function showRepSelection() {
     $drawerContent.innerHTML =
       '<div class="drawer-header">' +
         '<span class="drawer-title">تأكيد الطلب 💬</span>' +
-        '<button class="drawer-close" id="drawerCloseBtn">✕</button>' +
+        '<button class="drawer-close" data-action="close">✕</button>' +
       '</div>' +
       '<div class="rep-view">' +
         '<h3 class="rep-view-title">اختر المسؤول لتأكيد طلبك عبر واتساب 💬</h3>' +
         '<p class="rep-view-sub">سيتواصل معك للتأكيد وتحديد موعد التوصيل</p>' +
-        '<button class="whatsapp-btn" id="repIbrahim">' +
+        '<button class="whatsapp-btn" data-action="rep-ibrahim">' +
           WHATSAPP_SVG +
           '<span>إبراهيم — تواصل مباشرة</span>' +
         '</button>' +
-        '<button class="whatsapp-btn" id="repRakan">' +
+        '<button class="whatsapp-btn" data-action="rep-rakan">' +
           WHATSAPP_SVG +
           '<span>ركان — تواصل مباشرة</span>' +
         '</button>' +
-        '<button class="back-to-cart-btn" id="backToCartBtn">← رجوع للسلة</button>' +
+        '<button class="back-to-cart-btn" data-action="back-to-cart">← رجوع للسلة</button>' +
       '</div>';
 
-    bindDrawerClose();
-
-    document.getElementById('repIbrahim').addEventListener('click', function () {
-      generateWhatsAppMessage('إبراهيم', '962787364679');
-    });
-
-    document.getElementById('repRakan').addEventListener('click', function () {
-      generateWhatsAppMessage('ركان', '96278929001');
-    });
-
-    document.getElementById('backToCartBtn').addEventListener('click', function () {
-      renderDrawerCart();
-    });
+    bindDrawerEvents();
   }
 
   function generateWhatsAppMessage(repName, phone) {
-    var message = 'مرحبا ' + repName + ' 👋\nعندي طلب جديد من الموقع:\n\n📋 تفاصيل الطلب:\n';
-    cart.forEach(function (item) {
+    var msg = 'مرحبا ' + repName + ' 👋\n';
+    msg += 'عندي طلب جديد من الموقع:\n\n';
+    msg += '📋 تفاصيل الطلب:\n';
+
+    for (var i = 0; i < cart.length; i++) {
+      var item = cart[i];
       var sizeLabel = item.size ? ' (' + item.size + ')' : '';
       var subtotal = (item.price * item.quantity).toFixed(2);
-      message += '• ' + item.name + sizeLabel + ' × ' + item.quantity + ' = ' + subtotal + ' د.أ\n';
-    });
+      msg += '- ' + item.name + sizeLabel + ' × ' + item.quantity + ' = ' + subtotal + ' د.أ\n';
+    }
+
     var total = getCartTotal().toFixed(2);
-    message += '\n💵 المجموع الكلي: ' + total + ' د.أ\n🚚 رسوم التوصيل: مجاناً';
-    var encoded = encodeURIComponent(message);
-    window.open('https://wa.me/' + phone + '?text=' + encoded, '_blank');
+    msg += '\n💵 المجموع الكلي: ' + total + ' د.أ\n';
+    msg += '🚚 رسوم التوصيل: مجاناً';
+
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  /* ==========================================
-     RETRY
-     ========================================== */
+  /* ══════════════════════════════════════════
+     14. RETRY
+     ══════════════════════════════════════════ */
+
   $retryBtn.addEventListener('click', function () {
     fetchProducts();
   });
 
-  /* ==========================================
-     HELPERS
-     ========================================== */
-  function escapeHTML(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
-  }
+  /* ══════════════════════════════════════════
+     🚀 INIT
+     ══════════════════════════════════════════ */
 
-  function escapeAttr(str) {
-    if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-  /* ==========================================
-     INIT
-     ========================================== */
   fetchProducts();
 
 })();
