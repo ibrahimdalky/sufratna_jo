@@ -1,11 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════
-   سفرتنا – Luxury Heritage E-Commerce Theme
+   سفرتنا – Luxury Heritage E-Commerce Theme (Refactored)
+   ═══════════════════════════════════════════════════════════════════
    Color Palette:
-     - Background:  #141210 (deep charcoal), #1C1917 (warm black)
-     - Primary:     #C47D4C (antique copper), #B87333 (bronze)
-     - Accent:      #E5A93C (golden amber)
-     - Text:        #F5F5F4 (off-white), #A8A29E (muted golden-gray)
-     - Glass:       rgba(28, 25, 23, 0.85) with bronze border
+     Background:  #141210 (deep charcoal), #1C1917 (warm black)
+     Primary:     #C47D4C (antique copper), #B87333 (bronze)
+     Accent:      #E5A93C (golden amber)
+     Text:        #F5F5F4 (off-white), #A8A29E (muted golden-gray)
+     Glass:       rgba(28, 25, 23, 0.85) with bronze border
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ─── RESET & BASE ─────────────────────────────────────────────── */
@@ -52,8 +53,7 @@ body {
   direction: rtl;
   min-height: 100dvh;
   overflow-x: hidden;
-  padding-bottom: 90px; /* Space for floating cart bar */
-  /* Subtle radial gradient background for depth */
+  padding-bottom: 90px;
   background-image:
     radial-gradient(ellipse at 50% 0%, rgba(196, 125, 76, 0.06) 0%, transparent 60%),
     radial-gradient(ellipse at 80% 100%, rgba(229, 169, 60, 0.04) 0%, transparent 50%);
@@ -63,6 +63,7 @@ body {
 /* ─── ANNOUNCEMENT BAR ─────────────────────────────────────────── */
 .announcement-bar {
   background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--accent));
+  background-size: 200% 200%;
   color: var(--bg-deep);
   text-align: center;
   padding: 10px 16px;
@@ -78,10 +79,6 @@ body {
 @keyframes shimmerBar {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
-}
-
-.announcement-bar {
-  background-size: 200% 200%;
 }
 
 /* ─── HEADER / LOGO ────────────────────────────────────────────── */
@@ -226,10 +223,26 @@ body {
   padding: 10px 0 20px;
 }
 
-.product-swiper {
+/* Swiper container: use the standard .swiper class */
+#product-swiper {
   width: 100%;
   padding: 30px 0 40px;
   overflow: visible;
+}
+
+/* Slide widths for coverflow */
+#product-swiper .swiper-slide {
+  width: 280px;
+  transition: opacity var(--transition-medium), filter var(--transition-medium);
+}
+
+/* RTL fix: Swiper wrapper runs LTR internally, cards stay RTL */
+#product-swiper .swiper-wrapper {
+  direction: ltr;
+}
+
+#product-swiper .swiper-slide .product-card {
+  direction: rtl;
 }
 
 /* ─── PRODUCT CARD ─────────────────────────────────────────────── */
@@ -247,16 +260,15 @@ body {
   margin: 0 auto;
 }
 
-/* Glow effect on active (center) slide */
+/* Glow effect on the active (center) slide */
 .swiper-slide-active .product-card {
   border-color: var(--glass-border-strong);
   box-shadow: var(--glow-bronze-strong);
-  transform: scale(1);
 }
 
 .swiper-slide:not(.swiper-slide-active) .product-card {
-  opacity: 0.6;
-  filter: brightness(0.8);
+  opacity: 0.55;
+  filter: brightness(0.75);
 }
 
 /* Top decorative gradient line */
@@ -365,8 +377,7 @@ body {
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--accent);
-  direction: ltr;
-  unicode-bidi: bidi-override;
+  transition: transform 0.2s ease;
 }
 
 .product-price .currency {
@@ -468,6 +479,19 @@ body {
   position: relative;
   font-size: 1.3rem;
   color: var(--primary);
+  transition: transform 0.3s ease;
+}
+
+.cart-icon-wrapper.bounce {
+  animation: cartBounce 0.5s ease;
+}
+
+@keyframes cartBounce {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.35); }
+  50%  { transform: scale(0.9); }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }
 
 .cart-badge {
@@ -492,8 +516,8 @@ body {
 }
 
 @keyframes badgePulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.5); }
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.5); }
   100% { transform: scale(1); }
 }
 
@@ -507,7 +531,6 @@ body {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--accent);
-  direction: ltr;
 }
 
 /* ─── CART DRAWER (Bottom Sheet) ───────────────────────────────── */
@@ -549,11 +572,20 @@ body {
   transform: translateY(0);
 }
 
+/* Drag handle visual indicator */
+.cart-drawer-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--glass-border-strong);
+  border-radius: 2px;
+  margin: 10px auto 0;
+}
+
 .cart-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px 16px;
+  padding: 14px 24px 14px;
   border-bottom: 1px solid var(--glass-border);
 }
 
@@ -597,6 +629,9 @@ body {
   text-align: center;
   padding: 50px 20px;
   color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .cart-empty-state i {
@@ -628,7 +663,7 @@ body {
 
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .cart-item-image {
@@ -709,7 +744,6 @@ body {
   font-weight: 700;
   color: var(--accent);
   white-space: nowrap;
-  direction: ltr;
   min-width: 60px;
   text-align: left;
 }
@@ -756,7 +790,6 @@ body {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent);
-  direction: ltr;
 }
 
 .checkout-btn {
@@ -964,22 +997,18 @@ body {
 }
 
 /* ─── FLY-TO-CART ANIMATION ────────────────────────────────────── */
-.fly-to-cart-clone {
+.fly-clone {
   position: fixed;
-  z-index: 1000;
-  border-radius: var(--radius-sm);
+  z-index: 9999;
+  border-radius: 50%;
   object-fit: cover;
   pointer-events: none;
-  transition: all 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  box-shadow: 0 4px 20px rgba(196, 125, 76, 0.4);
+  will-change: transform, opacity, top, left, width, height;
+  box-shadow: 0 4px 20px rgba(196, 125, 76, 0.5);
+  border: 2px solid var(--accent);
 }
 
-.fly-to-cart-clone.animate {
-  opacity: 0;
-  transform: scale(0.1);
-}
-
-/* ─── RESPONSIVE ───────────────────────────────────────────────── */
+/* ─── RESPONSIVE – Cap at mobile width on desktop ──────────────── */
 @media (min-width: 768px) {
   body {
     max-width: 480px;
@@ -1008,19 +1037,4 @@ body {
   .whatsapp-modal.open {
     transform: translateX(-50%) translateY(0);
   }
-}
-
-/* ─── SWIPER COVERFLOW OVERRIDES ───────────────────────────────── */
-.swiper-slide {
-  width: 280px;
-  transition: all var(--transition-medium);
-}
-
-/* Ensure proper RTL behavior for Swiper */
-.product-swiper .swiper-wrapper {
-  direction: ltr;
-}
-
-.product-swiper .swiper-slide .product-card {
-  direction: rtl;
 }

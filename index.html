@@ -13,10 +13,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&display=swap" rel="stylesheet" />
 
-  <!-- Swiper.js CSS -->
+  <!-- Swiper 11 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 
-  <!-- Font Awesome Icons -->
+  <!-- Font Awesome 6 Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
   <!-- App Styles -->
@@ -35,7 +35,7 @@
        HEADER – Brand Logo
        ═══════════════════════════════════════════════ -->
   <header id="app-header" class="app-header">
-    <div class="logo-container">
+    <div class="logo-container" id="logo-container">
       <img id="brand-logo" class="brand-logo" src="" alt="سفرتنا" />
     </div>
   </header>
@@ -76,7 +76,7 @@
 
     <!-- 3D Coverflow Product Slider -->
     <section id="products-section" class="products-section" style="display:none;">
-      <div class="swiper product-swiper">
+      <div class="swiper" id="product-swiper">
         <div class="swiper-wrapper" id="swiper-wrapper">
           <!-- Dynamically populated by app.js -->
         </div>
@@ -97,7 +97,7 @@
   <div id="cart-bar" class="cart-bar" onclick="toggleCartDrawer()">
     <div class="cart-bar-content">
       <div class="cart-bar-right">
-        <div class="cart-icon-wrapper">
+        <div class="cart-icon-wrapper" id="cart-icon-wrapper">
           <i class="fa-solid fa-cart-shopping" id="cart-icon"></i>
           <span class="cart-badge" id="cart-badge">0</span>
         </div>
@@ -114,6 +114,7 @@
        ═══════════════════════════════════════════════ -->
   <div id="cart-overlay" class="cart-overlay" onclick="toggleCartDrawer()"></div>
   <div id="cart-drawer" class="cart-drawer">
+    <div class="cart-drawer-handle"></div>
     <div class="cart-drawer-header">
       <h2><i class="fa-solid fa-cart-shopping"></i> سلة المشتريات</h2>
       <button class="cart-close-btn" onclick="toggleCartDrawer()" aria-label="إغلاق السلة">
@@ -122,16 +123,11 @@
     </div>
     <div class="cart-drawer-body" id="cart-drawer-body">
       <!-- Dynamically populated by app.js -->
-      <div class="cart-empty-state" id="cart-empty">
-        <i class="fa-solid fa-basket-shopping"></i>
-        <p>السلة فارغة</p>
-        <span>أضف بعض الأطباق الشهية!</span>
-      </div>
     </div>
     <div class="cart-drawer-footer" id="cart-drawer-footer" style="display:none;">
       <div class="cart-delivery-badge">
         <i class="fa-solid fa-truck-fast"></i>
-        <span>رسوم التوصيل: <strong>مجاناً</strong></span>
+        <span>🚚 رسوم التوصيل: <strong>مجاناً</strong></span>
       </div>
       <div class="cart-total-row">
         <span>المجموع الكلي:</span>
@@ -139,7 +135,7 @@
       </div>
       <button class="checkout-btn" id="checkout-btn" onclick="openWhatsAppModal()">
         <i class="fa-brands fa-whatsapp"></i>
-        <span>متابعة الطلب</span>
+        <span>تأكيد الطلب</span>
       </button>
     </div>
   </div>
@@ -188,7 +184,7 @@
     <span>تمت الإضافة إلى السلة ✓</span>
   </div>
 
-  <!-- Swiper.js Script -->
+  <!-- Swiper 11 JS -->
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
   <!-- App Logic -->
