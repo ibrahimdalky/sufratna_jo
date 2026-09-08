@@ -976,6 +976,121 @@ button {
   to   { opacity: 0; transform: translateY(10px); }
 }
 
+/* ---------- BUTTON PRESS BOUNCE ---------- */
+@keyframes pressDown {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.93); }
+  70%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.add-to-cart-btn.press {
+  animation: pressDown 0.35s ease forwards;
+}
+
+/* ---------- CART BAR PULSE (when has items) ---------- */
+@keyframes cartBarPulse {
+  0%, 100% { box-shadow: 0 -2px 0 0 rgba(229,169,60,0); }
+  50%       { box-shadow: 0 -6px 20px 0 rgba(229,169,60,0.35); }
+}
+
+.cart-bar.has-items {
+  animation: cartBarPulse 2.5s ease-in-out infinite;
+}
+
+/* ---------- SWIPE HINT ---------- */
+.swipe-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  animation: swipeHintFade 2.8s ease forwards;
+}
+
+.swipe-hint-finger {
+  font-size: 2rem;
+  animation: swipeHintMove 1.2s ease-in-out 2;
+}
+
+.swipe-hint-text {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.7);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+@keyframes swipeHintMove {
+  0%   { transform: translateX(0); opacity: 1; }
+  30%  { transform: translateX(-24px); opacity: 1; }
+  60%  { transform: translateX(24px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes swipeHintFade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- CARD ENTRANCE STAGGER ---------- */
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.swiper-slide.entering {
+  animation: cardEntrance 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.swiper-slide.entering:nth-child(1) { animation-delay: 0ms; }
+.swiper-slide.entering:nth-child(2) { animation-delay: 90ms; }
+.swiper-slide.entering:nth-child(3) { animation-delay: 180ms; }
+.swiper-slide.entering:nth-child(4) { animation-delay: 270ms; }
+.swiper-slide.entering:nth-child(5) { animation-delay: 360ms; }
+.swiper-slide.entering:nth-child(6) { animation-delay: 450ms; }
+.swiper-slide.entering:nth-child(7) { animation-delay: 540ms; }
+.swiper-slide.entering:nth-child(8) { animation-delay: 630ms; }
+
+/* ---------- FLY-TO-CART ARC (enhanced) ---------- */
+.fly-clone {
+  position: fixed;
+  z-index: 2000;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.fly-clone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- PRICE COUNT-UP FLASH ---------- */
+@keyframes priceFlash {
+  0%   { color: var(--gold); transform: scale(1); }
+  40%  { color: #fff;        transform: scale(1.12); }
+  100% { color: var(--gold); transform: scale(1); }
+}
+
+.cart-bar-right.updating {
+  animation: priceFlash 0.45s ease forwards;
+}
+
 /* ---------- SCROLLBAR (webkit) ---------- */
 ::-webkit-scrollbar {
   width: 4px;

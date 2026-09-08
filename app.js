@@ -31,16 +31,13 @@
 
   function fetchCSV() {
     var encoded = encodeURIComponent(CSV_URL);
-    // Try direct URL first (fastest, works on most browsers when page is HTTPS)
-    // Then race all proxies simultaneously as fallback
-    var allUrls = [
-      CSV_URL,
+    var proxies = [
       'https://api.allorigins.win/raw?url=' + encoded,
       'https://corsproxy.io/?url=' + encoded,
       'https://thingproxy.freeboard.io/fetch/' + CSV_URL,
       'https://yacdn.org/serve/' + CSV_URL
     ];
-    return Promise.any(allUrls.map(function (url) { return fetchWithProxy(url); }));
+    return Promise.any(proxies.map(function (url) { return fetchWithProxy(url); }));
   }
 
   var PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
@@ -460,7 +457,29 @@
     }
 
     $swiperWrapper.innerHTML = html;
+
+    // Card entrance stagger animation
+    var slides = $swiperWrapper.querySelectorAll('.swiper-slide');
+    for (var s = 0; s < slides.length; s++) {
+      slides[s].classList.add('entering');
+    }
+
     initSwiper();
+
+    // Swipe hint — show only on first ever load
+    if (!sessionStorage.getItem('swipeHintShown')) {
+      sessionStorage.setItem('swipeHintShown', '1');
+      setTimeout(function () {
+        var hint = document.createElement('div');
+        hint.className = 'swipe-hint';
+        hint.innerHTML = '<span class="swipe-hint-finger">👆</span><span class="swipe-hint-text">اسحب للتصفح</span>';
+        $productSwiper.style.position = 'relative';
+        $productSwiper.appendChild(hint);
+        setTimeout(function () {
+          if (hint.parentNode) hint.parentNode.removeChild(hint);
+        }, 3000);
+      }, 600);
+    }
   }
 
   /* ══════════════════════════════════════════
@@ -542,6 +561,13 @@
       if (!prod) return;
 
       addToCart(prod);
+
+      // Press bounce animation
+      btn.classList.add('press');
+      btn.addEventListener('animationend', function onEnd() {
+        btn.classList.remove('press');
+        btn.removeEventListener('animationend', onEnd);
+      });
 
       // Success flash
       btn.classList.add('success');
@@ -641,14 +667,28 @@
       $cartBadge.style.display = 'flex';
       $cartBadge.textContent = count;
       $cartBadge.classList.remove('bounce');
-      void $cartBadge.offsetWidth; // reflow to restart animation
+      void $cartBadge.offsetWidth;
       $cartBadge.classList.add('bounce');
       $cartBarText.innerHTML = 'سلة المشتريات';
-      $cartBarTotal.textContent = total.toFixed(2) + ' د.أ';
+
+      // Price count-up flash
+      var $total = document.getElementById('cartBarTotal');
+      $total.classList.remove('updating');
+      void $total.offsetWidth;
+      $total.classList.add('updating');
+      $total.addEventListener('animationend', function onEnd() {
+        $total.classList.remove('updating');
+        $total.removeEventListener('animationend', onEnd);
+      });
+      $total.textContent = total.toFixed(2) + ' د.أ';
+
+      // Cart bar pulse
+      $cartBar.classList.add('has-items');
     } else {
       $cartBadge.style.display = 'none';
       $cartBarText.innerHTML = '<span class="muted">سلتك فارغة</span>';
       $cartBarTotal.textContent = '';
+      $cartBar.classList.remove('has-items');
     }
   }
 
@@ -660,30 +700,71 @@
     var imgRect = imgEl.getBoundingClientRect();
     var barRect = $cartBar.getBoundingClientRect();
 
+    // Start position: center of product image
+    var startX = imgRect.left + imgRect.width / 2;
+    var startY = imgRect.top + imgRect.height / 2;
+
+    // End position: cart icon in bar
+    var endX = barRect.left + 40;
+    var endY = barRect.top + barRect.height / 2;
+
     var clone = document.createElement('div');
     clone.className = 'fly-clone';
-    clone.style.width = '60px';
-    clone.style.height = '60px';
-    clone.style.top = (imgRect.top + imgRect.height / 2 - 30) + 'px';
-    clone.style.left = (imgRect.left + imgRect.width / 2 - 30) + 'px';
+    clone.style.width = '56px';
+    clone.style.height = '56px';
+    clone.style.top = (startY - 28) + 'px';
+    clone.style.left = (startX - 28) + 'px';
+    clone.style.transition = 'none';
+    clone.style.opacity = '1';
+    clone.style.transform = 'scale(1)';
 
     var cImg = document.createElement('img');
     cImg.src = imgEl.src;
     clone.appendChild(cImg);
     document.body.appendChild(clone);
 
-    var dx = barRect.left + 30 - (imgRect.left + imgRect.width / 2);
-    var dy = barRect.top + barRect.height / 2 - (imgRect.top + imgRect.height / 2);
+    // Arc animation using JS keyframes (bezier arc path)
+    var startTime = null;
+    var duration = 680;
 
-    requestAnimationFrame(function () {
-      clone.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.1)';
-      clone.style.opacity = '0';
-    });
+    // Control point for arc (goes up then curves to cart)
+    var cpX = (startX + endX) / 2;
+    var cpY = Math.min(startY, endY) - 120;
 
-    clone.addEventListener('transitionend', function handler() {
-      clone.removeEventListener('transitionend', handler);
-      if (clone.parentNode) clone.parentNode.removeChild(clone);
-    });
+    function easeInOut(t) {
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    }
+
+    function animateArc(ts) {
+      if (!startTime) startTime = ts;
+      var elapsed = ts - startTime;
+      var progress = Math.min(elapsed / duration, 1);
+      var t = easeInOut(progress);
+
+      // Quadratic bezier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+      var inv = 1 - t;
+      var curX = inv * inv * startX + 2 * inv * t * cpX + t * t * endX;
+      var curY = inv * inv * startY + 2 * inv * t * cpY + t * t * endY;
+      var scale = 1 - t * 0.88;
+      var opacity = progress < 0.8 ? 1 : 1 - (progress - 0.8) / 0.2;
+
+      clone.style.left = (curX - 28) + 'px';
+      clone.style.top = (curY - 28) + 'px';
+      clone.style.transform = 'scale(' + scale + ')';
+      clone.style.opacity = opacity;
+
+      if (progress < 1) {
+        requestAnimationFrame(animateArc);
+      } else {
+        if (clone.parentNode) clone.parentNode.removeChild(clone);
+        // Bounce cart icon on arrival
+        $cartBadge.classList.remove('bounce');
+        void $cartBadge.offsetWidth;
+        $cartBadge.classList.add('bounce');
+      }
+    }
+
+    requestAnimationFrame(animateArc);
   }
 
   /* ══════════════════════════════════════════
