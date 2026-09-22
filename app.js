@@ -9,11 +9,16 @@
   /* ──────────── CONSTANTS ──────────── */
 
   var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9p3HjkTJAsmNyFCDCcYAzg1wot5iz6AcCWN618PRzqd8Zw6ZSbcYtZ85o-wTs6tLpBYWFvqD4yl9S/pub?output=csv';
+  // The sheet URL above is intentionally kept unchanged. Cache only stores
+  // the latest response so the menu can appear immediately on repeat visits.
+  var MENU_CACHE_KEY = 'safratna_menu_csv_v1';
+  var MENU_CACHE_MAX_AGE = 10 * 60 * 1000;
+  var menuRequest = null;
 
   function fetchWithProxy(proxyUrl) {
     var controller = new AbortController();
     var timeout = setTimeout(function () { controller.abort(); }, 6000);
-    return fetch(proxyUrl, { signal: controller.signal })
+    return fetch(proxyUrl, { signal: controller.signal, cache: 'no-store' })
       .then(function (res) {
         clearTimeout(timeout);
         if (!res.ok) throw new Error('not ok');
@@ -29,18 +34,42 @@
       });
   }
 
-  function fetchCSV() {
-    var encoded = encodeURIComponent(CSV_URL);
+  function fetchCSV(forceRefresh) {
+    // Add a request-only cache buster on manual refresh. CSV_URL itself stays
+    // untouched so the sheet connection remains exactly the same.
+    var requestURL = forceRefresh ? CSV_URL + '&v=' + Date.now() : CSV_URL;
+    var encoded = encodeURIComponent(requestURL);
     // Try direct URL first (fastest, works on most browsers when page is HTTPS)
     // Then race all proxies simultaneously as fallback
     var allUrls = [
-      CSV_URL,
+      requestURL,
       'https://api.allorigins.win/raw?url=' + encoded,
       'https://corsproxy.io/?url=' + encoded,
-      'https://thingproxy.freeboard.io/fetch/' + CSV_URL,
-      'https://yacdn.org/serve/' + CSV_URL
+      'https://thingproxy.freeboard.io/fetch/' + requestURL,
+      'https://yacdn.org/serve/' + requestURL
     ];
     return Promise.any(allUrls.map(function (url) { return fetchWithProxy(url); }));
+  }
+
+  function readMenuCache() {
+    try {
+      var raw = localStorage.getItem(MENU_CACHE_KEY);
+      if (!raw) return null;
+      var cached = JSON.parse(raw);
+      if (!cached || !cached.text) return null;
+      return cached;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeMenuCache(text) {
+    try {
+      localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({
+        text: text,
+        savedAt: Date.now()
+      }));
+    } catch (e) { /* private browsing or a full storage quota */ }
   }
 
   var PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%231C1917'/%3E%3Ctext x='100' y='108' text-anchor='middle' font-size='48' fill='%23C47D4C'%3E🍽%3C/text%3E%3C/svg%3E";
@@ -55,6 +84,7 @@
   var activeCategory = 'الكل';
   var cart = [];
   var swiperInstance = null;
+  var CART_STORAGE_KEY = 'safratna_cart_v1';
 
   /* ──────────── DOM REFERENCES ──────────── */
 
@@ -74,6 +104,10 @@
   var $toastContainer = document.getElementById('toastContainer');
   var $brandLogo      = document.getElementById('brandLogo');
   var $logoPlaceholder = document.getElementById('logoPlaceholder');
+  var $journeyStartBtn = document.getElementById('journeyStartBtn');
+  var $refreshBtn      = document.getElementById('refreshBtn');
+  var $syncStatus      = document.getElementById('syncStatus');
+  var $swipeGuide      = document.getElementById('swipeGuide');
 
   /* ══════════════════════════════════════════
      1. PARTICLE BACKGROUND
@@ -82,11 +116,12 @@
   (function () {
     var ctx = $canvas.getContext('2d');
     var particles = [];
-    var COUNT = 60;
+    var COUNT = window.innerWidth <= 480 ? 26 : 44;
 
     function resize() {
       $canvas.width = window.innerWidth;
       $canvas.height = window.innerHeight;
+      COUNT = window.innerWidth <= 480 ? 26 : 44;
     }
 
     function seed() {
@@ -106,6 +141,7 @@
     }
 
     function loop() {
+      if (document.hidden) return;
       ctx.clearRect(0, 0, $canvas.width, $canvas.height);
       for (var i = 0; i < particles.length; i++) {
         var p = particles[i];
@@ -131,6 +167,9 @@
     resize();
     seed();
     loop();
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) loop();
+    });
     window.addEventListener('resize', function () { resize(); seed(); });
   })();
 
@@ -153,6 +192,18 @@
       .replace(/'/g, '&#39;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function loadCart() {
+    try {
+      var raw = localStorage.getItem(CART_STORAGE_KEY);
+      var saved = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(saved)) cart = saved;
+    } catch (e) { cart = []; }
+  }
+
+  function saveCart() {
+    try { localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart)); } catch (e) { /* ignore */ }
   }
 
   /**
@@ -220,21 +271,53 @@
      4. CSV FETCH & PARSE
      ══════════════════════════════════════════ */
 
-  function fetchProducts() {
-    $skeletonLoader.style.display = 'grid';
-    $errorState.style.display = 'none';
-    $productSwiper.style.display = 'none';
+  function fetchProducts(options) {
+    options = options || {};
+    var cached = readMenuCache();
+    var hasUsableCache = cached && cached.text;
 
-    fetchCSV()
+    $errorState.style.display = 'none';
+    if (hasUsableCache) {
+      // Paint cached data first. This keeps repeat visits almost instant while
+      // the fresh sheet response is loaded in the background.
+      handleCSV(cached.text);
+      $skeletonLoader.style.display = 'none';
+      $productSwiper.style.display = 'block';
+      setSyncStatus(cached.savedAt && Date.now() - cached.savedAt <= MENU_CACHE_MAX_AGE ? 'آخر تحديث محفوظ' : 'نحدّث المنيو الآن…');
+    } else {
+      $skeletonLoader.style.display = 'grid';
+      $productSwiper.style.display = 'none';
+      setSyncStatus('نحمّل المنيو الآن…');
+    }
+
+    if (menuRequest) return menuRequest;
+    if (options.force) setSyncStatus('نحدّث المنيو الآن…');
+
+    menuRequest = fetchCSV(!!options.force)
       .then(function (text) {
         console.log('CSV loaded, length:', text.length);
+        writeMenuCache(text);
         handleCSV(text);
+        setSyncStatus('المنيو محدثة الآن');
       })
       .catch(function (err) {
         console.error('FETCH ERROR:', err);
-        $skeletonLoader.style.display = 'none';
-        $errorState.style.display = 'block';
+        if (!hasUsableCache) {
+          $skeletonLoader.style.display = 'none';
+          $errorState.style.display = 'block';
+          setSyncStatus('تعذر تحميل المنيو');
+        } else {
+          setSyncStatus('نعرض آخر نسخة محفوظة');
+        }
+      })
+      .then(function () {
+        menuRequest = null;
       });
+    return menuRequest;
+  }
+
+  function setSyncStatus(message) {
+    if ($syncStatus) $syncStatus.textContent = message || '';
   }
 
   function handleCSV(csvText) {
@@ -272,6 +355,11 @@
     for (var i = 0; i < headers.length; i++) {
       col[headers[i].trim().toLowerCase()] = i;
     }
+
+    // Optional presentation columns. Existing sheets do not need to change.
+    var badgeCol = col['badge'] !== undefined ? col['badge'] :
+      (col['tag'] !== undefined ? col['tag'] : col['شارة']);
+    var featuredCol = col['is_featured'] !== undefined ? col['is_featured'] : col['featured'];
 
     // Validate required columns exist
     var required = ['id', 'name', 'category', 'base_price', 'description', 'image_url', 'sizes_and_prices', 'is_available'];
@@ -329,6 +417,9 @@
       if (category) catSet[category] = true;
 
       var imgUrl = extractImageUrl(c[col['image_url']]);
+      var badgeText = badgeCol !== undefined ? (c[badgeCol] || '').trim() : '';
+      var isFeatured = featuredCol !== undefined && (c[featuredCol] || '').trim().toUpperCase() === 'TRUE';
+      if (!badgeText && isFeatured) badgeText = 'الأكثر طلباً';
 
       products.push({
         id: (c[col['id']] || '').trim(),
@@ -338,6 +429,7 @@
         sizes: sizes,
         image_url: imgUrl,
         description: (c[col['description']] || '').trim(),
+        badge: badgeText,
         selectedSize: sizes.length > 0 ? sizes[0] : null,
         selectedPrice: sizes.length > 0 ? sizes[0].price : basePrice
       });
@@ -380,9 +472,13 @@
      ══════════════════════════════════════════ */
 
   function renderCategories() {
-    var html = '<button class="cat-pill active" data-cat="الكل">الكل</button>';
+    var html = '<button class="cat-pill active" data-cat="الكل"><span class="cat-name">الكل</span><span class="cat-count">' + allProducts.length + '</span></button>';
     for (var i = 0; i < categories.length; i++) {
-      html += '<button class="cat-pill" data-cat="' + escapeAttr(categories[i]) + '">' + escapeHTML(categories[i]) + '</button>';
+      var count = 0;
+      for (var j = 0; j < allProducts.length; j++) {
+        if (allProducts[j].category === categories[i]) count++;
+      }
+      html += '<button class="cat-pill" data-cat="' + escapeAttr(categories[i]) + '"><span class="cat-name">' + escapeHTML(categories[i]) + '</span><span class="cat-count">' + count + '</span></button>';
     }
     $categoryScroll.innerHTML = html;
   }
@@ -436,13 +532,19 @@
       }
 
       var imgSrc = p.image_url || PLACEHOLDER_SVG;
+      var badgeHTML = p.badge
+        ? '<span class="product-badge" aria-label="' + escapeAttr(p.badge) + '">' + escapeHTML(p.badge) + '</span>'
+        : '';
+      var imageLoading = idx < 2 ? 'eager' : 'lazy';
+      var imagePriority = idx < 2 ? 'high' : 'auto';
 
       html +=
         '<div class="swiper-slide" data-idx="' + idx + '">' +
           '<div class="product-card">' +
             '<div class="card-image-wrap">' +
-              '<img src="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+              '<img src="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" loading="' + imageLoading + '" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
               '<div class="card-image-overlay"></div>' +
+              badgeHTML +
             '</div>' +
             '<div class="card-body">' +
               '<span class="card-category">' + escapeHTML(p.category) + '</span>' +
@@ -467,6 +569,20 @@
      7. SWIPER INITIALIZATION
      ══════════════════════════════════════════ */
 
+  function preloadNearbyImages(swiper) {
+    if (!swiper || !swiper.slides) return;
+    var center = swiper.activeIndex || 0;
+    for (var offset = -2; offset <= 2; offset++) {
+      var slide = swiper.slides[center + offset];
+      if (!slide) continue;
+      var img = slide.querySelector('img');
+      if (img) {
+        img.loading = 'eager';
+        img.fetchPriority = 'high';
+      }
+    }
+  }
+
   function initSwiper() {
     if (swiperInstance) {
       swiperInstance.destroy(true, true);
@@ -489,11 +605,15 @@
         },
         keyboard: { enabled: true },
         touchRatio: 1.5,
-        threshold: 5,
-        on: {
-          slideChange: function () {
-            /* placeholder for active-card visual feedback */
-          }
+         threshold: 5,
+         on: {
+           init: function (swiper) {
+             preloadNearbyImages(swiper);
+           },
+           slideChange: function () {
+             preloadNearbyImages(this);
+             if ($swipeGuide && this.activeIndex > 0) $swipeGuide.classList.add('is-hidden');
+           }
         }
       });
     }, 50);
@@ -542,6 +662,7 @@
       if (!prod) return;
 
       addToCart(prod);
+      if (navigator.vibrate) navigator.vibrate(8);
 
       // Success flash
       btn.classList.add('success');
@@ -590,6 +711,7 @@
       });
     }
 
+    saveCart();
     updateCartUI();
     showToast('✓ تمت الإضافة إلى السلة');
   }
@@ -602,6 +724,7 @@
       }
     }
     cart = next;
+    saveCart();
     updateCartUI();
     renderDrawerCart();
   }
@@ -617,6 +740,7 @@
         break;
       }
     }
+    saveCart();
     updateCartUI();
     renderDrawerCart();
   }
@@ -638,6 +762,7 @@
     var total = getCartTotal();
 
     if (count > 0) {
+      $cartBar.classList.add('has-items');
       $cartBadge.style.display = 'flex';
       $cartBadge.textContent = count;
       $cartBadge.classList.remove('bounce');
@@ -646,6 +771,7 @@
       $cartBarText.innerHTML = 'سلة المشتريات';
       $cartBarTotal.textContent = total.toFixed(2) + ' د.أ';
     } else {
+      $cartBar.classList.remove('has-items');
       $cartBadge.style.display = 'none';
       $cartBarText.innerHTML = '<span class="muted">سلتك فارغة</span>';
       $cartBarTotal.textContent = '';
@@ -884,13 +1010,37 @@
      ══════════════════════════════════════════ */
 
   $retryBtn.addEventListener('click', function () {
-    fetchProducts();
+    fetchProducts({ force: true });
   });
+
+  if ($journeyStartBtn) {
+    $journeyStartBtn.addEventListener('click', function () {
+      var target = document.getElementById('productSwiper');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (swiperInstance) swiperInstance.update();
+    });
+  }
+
+  if ($refreshBtn) {
+    $refreshBtn.addEventListener('click', function () {
+      if ($refreshBtn.disabled) return;
+      $refreshBtn.disabled = true;
+      $refreshBtn.classList.add('is-refreshing');
+      fetchProducts({ force: true }).then(function () {
+        setTimeout(function () {
+          $refreshBtn.disabled = false;
+          $refreshBtn.classList.remove('is-refreshing');
+        }, 350);
+      });
+    });
+  }
 
   /* ══════════════════════════════════════════
      🚀 INIT
      ══════════════════════════════════════════ */
 
+  loadCart();
+  updateCartUI();
   fetchProducts();
 
 })();

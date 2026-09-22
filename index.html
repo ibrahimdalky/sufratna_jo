@@ -49,12 +49,32 @@
       </div>
     </header>
 
+    <!-- Mobile-first journey hero -->
+    <section class="journey-hero" aria-labelledby="journeyTitle">
+      <div class="journey-hero-glow" aria-hidden="true"></div>
+      <div class="journey-hero-copy">
+        <span class="journey-eyebrow">رحلتك تبدأ من أول لقمة</span>
+        <h1 id="journeyTitle">اختار مزاجك اليوم</h1>
+        <p>اسحب يميناً واكتشف أكلات سفرتنا وحدة وراء الثانية.</p>
+      </div>
+      <div class="journey-hero-actions">
+        <button class="journey-start-btn" id="journeyStartBtn" type="button">استكشف المنيو <span aria-hidden="true">←</span></button>
+        <button class="refresh-btn" id="refreshBtn" type="button" aria-label="تحديث الأصناف">↻</button>
+      </div>
+      <span class="sync-status" id="syncStatus" aria-live="polite"></span>
+    </section>
+
     <!-- Category Pills -->
     <nav class="category-nav" id="categoryNav">
       <div class="category-scroll" id="categoryScroll">
         <!-- pills injected by JS -->
       </div>
     </nav>
+
+    <div class="swipe-guide" id="swipeGuide" role="status">
+      <span class="swipe-guide-finger" aria-hidden="true">☝</span>
+      <span>اسحب لليمين لاكتشاف باقي الأصناف</span>
+    </div>
 
     <!-- Skeleton Loader -->
     <div class="skeleton-grid" id="skeletonLoader">
