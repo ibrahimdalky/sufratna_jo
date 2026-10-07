@@ -537,18 +537,17 @@
       var showBestseller = p.id === '1' && !bestsellerShown;
       if (showBestseller) bestsellerShown = true;
       var badgeHTML = showBestseller
-        ? '<span class="product-badge">الأكثر طلباً</span>'
+        ? '<span class="bestseller-hat" aria-hidden="true"><svg class="chef-hat-icon" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg"><path d="M30 56C15 58 5 47 8 31C11 16 25 9 40 15C47 0 71 0 82 17C99 9 116 24 112 41C110 56 99 63 87 59C70 62 48 62 30 56Z" fill="#F2B734" stroke="#FFD879" stroke-width="1.5"/><path d="M31 62Q58 68 88 62L86 92Q59 88 33 94Z" fill="#F2B734" stroke="#FFD879" stroke-width="1.5"/><path d="M20 31Q22 20 34 22M49 17Q60 10 70 19" fill="none" stroke="#FFE6A8" stroke-width="3" stroke-linecap="round" opacity="0.7"/></svg></span><span class="product-badge">الأكثر طلباً</span>'
         : '';
       var imageLoading = idx < 2 ? 'eager' : 'lazy';
       var imagePriority = idx < 2 ? 'high' : 'auto';
 
       html +=
         '<div class="swiper-slide" data-idx="' + idx + '">' +
-          '<div class="product-card">' +
+          '<div class="product-card' + (showBestseller ? ' is-bestseller' : '') + '">' +
+            badgeHTML +
             '<div class="card-image-wrap">' +
               '<img src="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" loading="' + imageLoading + '" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
-              '<div class="card-image-overlay"></div>' +
-              badgeHTML +
             '</div>' +
             '<div class="card-body">' +
               '<span class="card-category">' + escapeHTML(p.category) + '</span>' +

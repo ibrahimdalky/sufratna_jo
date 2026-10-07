@@ -13,6 +13,9 @@
   --bg-primary: var(--cream);
   --bg-secondary: #F4EDE3;
   --bg-card: var(--surface);
+  --meal-surface: #F1D9C2;
+  --meal-surface-light: #F7E6D2;
+  --shadow-meal: 0 12px 30px -6px rgba(188, 67, 39, 0.28), 0 0 22px rgba(242, 183, 52, 0.2);
   --copper: var(--primary);
   --copper-light: var(--primary);
   --gold: var(--accent);
@@ -145,10 +148,10 @@ button:focus-visible {
 .site-header {
   display: flex;
   align-items: center;
-  gap: 18px;
-  text-align: right;
+  justify-content: center;
+  text-align: center;
   margin: 0 18px;
-  padding: 14px 4px 18px;
+  padding: 22px 4px 24px;
   background: rgba(250, 246, 240, 0.9);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-backdrop-filter: blur(12px);
@@ -156,16 +159,44 @@ button:focus-visible {
 }
 
 .logo-wrap {
+  --logo-size: clamp(160px, 46vw, 184px);
+  position: relative;
+  isolation: isolate;
   display: flex;
   justify-content: center;
   align-items: center;
-  flex: 0 0 112px;
-  min-height: 112px;
+  width: var(--logo-size);
+  min-height: var(--logo-size);
+}
+
+.logo-wrap::before,
+.logo-wrap::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.logo-wrap::before {
+  inset: -24px;
+  background: radial-gradient(circle, rgba(242, 183, 52, 0.4) 0%, rgba(188, 67, 39, 0.2) 42%, transparent 72%);
+  animation: logoHalo 4s ease-in-out infinite;
+}
+
+.logo-wrap::after {
+  inset: 12px;
+  box-shadow: 0 0 24px 9px rgba(242, 183, 52, 0.35), 0 0 45px 14px rgba(188, 67, 39, 0.19);
+}
+
+@keyframes logoHalo {
+  0%, 100% { transform: scale(0.94); opacity: 0.68; }
+  50% { transform: scale(1.08); opacity: 1; }
 }
 
 .logo-placeholder {
-  width: 112px;
-  height: 112px;
+  width: var(--logo-size);
+  height: var(--logo-size);
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -182,30 +213,10 @@ button:focus-visible {
 }
 
 .brand-logo {
-  width: 112px;
-  height: 112px;
+  width: var(--logo-size);
+  height: var(--logo-size);
   object-fit: contain;
-  filter: drop-shadow(0 5px 10px var(--glow-copper));
-}
-
-.header-brand-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.header-brand-name {
-  color: var(--primary);
-  font-size: 1.65rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.header-brand-note {
-  color: var(--text-secondary);
-  font-size: 0.74rem;
-  line-height: 1.6;
+  filter: drop-shadow(0 0 10px rgba(242, 183, 52, 0.65)) drop-shadow(0 7px 18px rgba(188, 67, 39, 0.32));
 }
 
 .header-divider {
@@ -559,7 +570,7 @@ button:focus-visible {
 /* ---------- SWIPER ---------- */
 .swiper {
   width: 100%;
-  padding-top: 30px;
+  padding-top: 64px;
   padding-bottom: 60px;
   overflow: hidden;
   touch-action: pan-y;
@@ -577,22 +588,50 @@ button:focus-visible {
   opacity: 1;
   transform: scale(1.05);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 /* ---------- PRODUCT CARDS ---------- */
 .product-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  position: relative;
+  isolation: isolate;
+  background: var(--meal-surface);
+  border: 1px solid rgba(188, 67, 39, 0.3);
   border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+  overflow: visible;
+  box-shadow: var(--shadow-meal);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform 0.18s ease;
+}
+
+.product-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 24px 3px rgba(242, 183, 52, 0.3), 0 0 32px 5px rgba(188, 67, 39, 0.19);
+  pointer-events: none;
+  opacity: 0;
+  z-index: -1;
+}
+
+.swiper-slide-active .product-card::before {
+  animation: mealGlow 3.8s ease-in-out infinite;
+}
+
+@keyframes mealGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .product-card:hover {
   border-color: var(--copper);
-  box-shadow: 0 14px 28px -5px rgba(188, 67, 39, 0.14), 0 8px 12px -6px rgba(188, 67, 39, 0.06);
+  box-shadow: 0 14px 30px -5px rgba(188, 67, 39, 0.34), 0 0 28px rgba(242, 183, 52, 0.32);
+}
+
+.product-card:active {
+  transform: scale(0.992);
+  border-color: var(--primary);
+  box-shadow: 0 12px 30px rgba(188, 67, 39, 0.3), 0 0 30px rgba(242, 183, 52, 0.4);
 }
 
 .card-image-wrap {
@@ -600,6 +639,8 @@ button:focus-visible {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
+  background: var(--meal-surface-light);
+  border-bottom: 2px solid rgba(188, 67, 39, 0.35);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
@@ -614,21 +655,11 @@ button:focus-visible {
   transform: scale(1.05);
 }
 
-.card-image-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 18%;
-  background: linear-gradient(to top, var(--bg-card), transparent);
-  pointer-events: none;
-}
-
 .product-badge {
   position: absolute;
-  top: 12px;
+  top: 43px;
   right: 12px;
-  z-index: 2;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -640,6 +671,7 @@ button:focus-visible {
   box-shadow: 0 4px 12px rgba(188, 67, 39, 0.16);
   font-size: 0.67rem;
   font-weight: 700;
+  pointer-events: none;
 }
 
 .product-badge::before {
@@ -649,8 +681,46 @@ button:focus-visible {
   color: var(--espresso);
 }
 
+/* The hat sits outside the photo so it wears the corner of card ID 1. */
+.bestseller-hat {
+  position: absolute;
+  top: -41px;
+  right: -7px;
+  width: 86px;
+  height: 78px;
+  z-index: 4;
+  transform: rotate(16deg);
+  transform-origin: 50% 80%;
+  pointer-events: none;
+}
+
+.bestseller-hat::before {
+  content: '';
+  position: absolute;
+  inset: 16px 14px 13px;
+  border-radius: 50%;
+  box-shadow: 0 0 18px 9px rgba(242, 183, 52, 0.48);
+  animation: hatGlow 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.chef-hat-icon {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 7px rgba(242, 183, 52, 0.85)) drop-shadow(0 4px 5px rgba(188, 67, 39, 0.3));
+}
+
+@keyframes hatGlow {
+  0%, 100% { opacity: 0.55; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
 .card-body {
   padding: 16px;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: linear-gradient(155deg, var(--meal-surface-light), var(--meal-surface));
 }
 
 .card-name {
