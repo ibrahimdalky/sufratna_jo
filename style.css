@@ -4,21 +4,29 @@
 
 /* ---------- CSS CUSTOM PROPERTIES ---------- */
 :root {
-  --bg-primary: #0D0B09;
-  --bg-secondary: #141210;
-  --bg-card: rgba(28, 25, 23, 0.92);
-  --copper: #C47D4C;
-  --copper-light: #D4956A;
-  --gold: #E5A93C;
-  --gold-dim: #B8892C;
-  --text-primary: #F5F5F0;
-  --text-secondary: #A8A29E;
-  --border-subtle: rgba(196, 125, 76, 0.2);
-  --glow-copper: rgba(196, 125, 76, 0.35);
+  /* Brand colors. Existing variable names remain compatible with app.js. */
+  --primary: #BC4327;
+  --accent: #F2B734;
+  --cream: #FAF6F0;
+  --surface: #FFFFFF;
+  --espresso: #2C1A14;
+  --bg-primary: var(--cream);
+  --bg-secondary: #F4EDE3;
+  --bg-card: var(--surface);
+  --copper: var(--primary);
+  --copper-light: var(--primary);
+  --gold: var(--accent);
+  --gold-dim: #C89019;
+  --text-primary: var(--espresso);
+  --text-secondary: #6B5045;
+  --border-subtle: rgba(188, 67, 39, 0.14);
+  --glow-copper: rgba(188, 67, 39, 0.16);
+  --shadow-card: 0 10px 25px -5px rgba(188, 67, 39, 0.08), 0 8px 10px -6px rgba(188, 67, 39, 0.04);
+  --shadow-action: 0 4px 14px 0 rgba(188, 67, 39, 0.39);
   --font-family: 'Readex Pro', sans-serif;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 16px;
   --radius-xl: 24px;
   --transition-fast: 0.2s ease;
   --transition-normal: 0.25s ease;
@@ -48,6 +56,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  color-scheme: light;
 }
 
 img {
@@ -62,6 +71,12 @@ button {
   outline: none;
   background: none;
   color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
 }
 
 /* ---------- PARTICLE CANVAS ---------- */
@@ -73,6 +88,7 @@ button {
   height: 100%;
   z-index: 0;
   pointer-events: none;
+  opacity: 0.35;
 }
 
 /* ---------- ANNOUNCEMENT BAR ---------- */
@@ -83,11 +99,11 @@ button {
   right: 0;
   z-index: 1000;
   height: 36px;
-  background: linear-gradient(135deg, var(--copper), var(--gold-dim));
+  background: var(--primary);
   display: flex;
   align-items: center;
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(196, 125, 76, 0.25);
+  box-shadow: 0 2px 12px rgba(188, 67, 39, 0.12);
 }
 
 .marquee-track {
@@ -99,7 +115,7 @@ button {
 .marquee-content {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--bg-primary);
+  color: var(--cream);
   padding: 0 2rem;
   flex-shrink: 0;
 }
@@ -127,38 +143,69 @@ button {
 
 /* ---------- HEADER ---------- */
 .site-header {
-  text-align: center;
-  padding: 28px 20px 12px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: right;
+  margin: 0 18px;
+  padding: 14px 4px 18px;
+  background: rgba(250, 246, 240, 0.9);
+  border-bottom: 1px solid var(--border-subtle);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .logo-wrap {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 16px;
+  flex: 0 0 112px;
+  min-height: 112px;
 }
 
 .logo-placeholder {
-  width: 100px;
-  height: 100px;
+  width: 112px;
+  height: 112px;
   border-radius: 50%;
-  background: var(--bg-secondary);
-  border: 2px solid var(--border-subtle);
-  animation: pulseGlow 3s ease-in-out infinite;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  border: 4px double var(--cream);
+  box-shadow: var(--shadow-card);
+}
+
+.logo-placeholder::after {
+  content: 'سفرتنا';
+  color: var(--cream);
+  font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .brand-logo {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  object-fit: cover;
-  filter: drop-shadow(0 0 20px var(--glow-copper));
-  animation: pulseGlow 3s ease-in-out infinite;
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px var(--glow-copper));
 }
 
-@keyframes pulseGlow {
-  0%, 100% { filter: drop-shadow(0 0 16px rgba(196, 125, 76, 0.3)); }
-  50%      { filter: drop-shadow(0 0 28px rgba(196, 125, 76, 0.6)); }
+.header-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.header-brand-name {
+  color: var(--primary);
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.header-brand-note {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.6;
 }
 
 .header-divider {
@@ -184,15 +231,15 @@ button {
 .journey-hero {
   position: relative;
   isolation: isolate;
-  margin: 4px 18px 8px;
-  padding: 20px 18px 16px;
-  border: 1px solid rgba(229, 169, 60, 0.22);
-  border-radius: 22px;
+  margin: 18px 18px 8px;
+  padding: 24px 20px 16px;
+  border: 1px solid rgba(188, 67, 39, 0.12);
+  border-radius: 24px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 12% 10%, rgba(229, 169, 60, 0.2), transparent 42%),
-    linear-gradient(135deg, rgba(196, 125, 76, 0.18), rgba(20, 18, 16, 0.94) 68%);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+    radial-gradient(circle at 0% 0%, rgba(242, 183, 52, 0.2), transparent 44%),
+    linear-gradient(135deg, #FFF9EE, var(--surface) 72%);
+  box-shadow: var(--shadow-card);
 }
 
 .journey-hero-glow {
@@ -202,8 +249,9 @@ button {
   left: -52px;
   top: -62px;
   border-radius: 50%;
-  background: rgba(229, 169, 60, 0.18);
-  filter: blur(18px);
+  border: 2px solid rgba(242, 183, 52, 0.32);
+  outline: 1px solid rgba(188, 67, 39, 0.12);
+  outline-offset: -12px;
   z-index: -1;
   animation: heroGlow 5s ease-in-out infinite alternate;
 }
@@ -219,8 +267,8 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--gold);
-  font-size: 0.72rem;
+  color: var(--primary);
+  font-size: 0.69rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   margin-bottom: 7px;
@@ -232,17 +280,29 @@ button {
 }
 
 .journey-hero h1 {
-  color: var(--text-primary);
-  font-size: clamp(1.35rem, 5vw, 1.7rem);
-  line-height: 1.3;
-  margin-bottom: 5px;
+  color: var(--espresso);
+  font-size: clamp(1.35rem, 5.5vw, 1.7rem);
+  font-weight: 700;
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+
+.hero-brand-line {
+  display: block;
+  color: var(--primary);
+  font-size: 1.2em;
+}
+
+.hero-student-icon {
+  display: inline-block;
+  font-size: 0.85em;
 }
 
 .journey-hero p {
   color: var(--text-secondary);
   font-size: 0.78rem;
   line-height: 1.7;
-  max-width: 245px;
+  max-width: 300px;
 }
 
 .journey-hero-actions {
@@ -253,37 +313,40 @@ button {
 }
 
 .journey-start-btn {
-  min-height: 42px;
-  padding: 0 17px;
-  border-radius: 13px;
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: 50px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  color: var(--bg-primary);
-  background: linear-gradient(135deg, var(--gold), var(--copper));
-  box-shadow: 0 8px 18px rgba(229, 169, 60, 0.2);
+  color: var(--cream);
+  background: var(--primary);
+  box-shadow: 0 4px 10px rgba(188, 67, 39, 0.16);
   font-size: 0.8rem;
   font-weight: 700;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.journey-start-btn:hover { transform: translateY(-2px); box-shadow: 0 11px 22px rgba(229, 169, 60, 0.28); }
-.journey-start-btn:active { transform: scale(0.97); }
+.journey-start-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-action); }
+.journey-start-btn:active { transform: scale(0.97); box-shadow: var(--shadow-action); }
+
+.cta-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
 .refresh-btn {
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(229, 169, 60, 0.28);
-  border-radius: 13px;
-  color: var(--gold);
-  background: rgba(13, 11, 9, 0.36);
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50px;
+  color: var(--primary);
+  background: var(--cream);
   font-size: 1.35rem;
   line-height: 1;
   transition: transform var(--transition-fast), background var(--transition-fast);
 }
 
-.refresh-btn:hover { background: rgba(229, 169, 60, 0.12); transform: rotate(20deg); }
+.refresh-btn:hover { background: rgba(242, 183, 52, 0.18); transform: rotate(20deg); }
+.refresh-btn:active { background: rgba(242, 183, 52, 0.24); }
 .refresh-btn.is-refreshing { animation: spinRefresh 0.8s linear infinite; }
 .refresh-btn:disabled { opacity: 0.7; cursor: wait; }
 
@@ -293,7 +356,7 @@ button {
   display: block;
   min-height: 13px;
   margin-top: 9px;
-  color: rgba(245, 245, 240, 0.48);
+  color: var(--text-secondary);
   font-size: 0.63rem;
 }
 
@@ -322,7 +385,7 @@ button {
   padding: 8px 20px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
-  background: transparent;
+  background: var(--surface);
   color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 400;
@@ -341,11 +404,11 @@ button {
 }
 
 .cat-pill.active {
-  background: linear-gradient(135deg, var(--copper), var(--gold-dim));
-  color: #fff;
+  background: var(--primary);
+  color: var(--cream);
   border-color: transparent;
   font-weight: 600;
-  box-shadow: 0 4px 16px rgba(196, 125, 76, 0.3);
+  box-shadow: 0 4px 12px rgba(188, 67, 39, 0.16);
 }
 
 .cat-count {
@@ -357,14 +420,14 @@ button {
   padding: 0 5px;
   border-radius: 999px;
   color: var(--copper-light);
-  background: rgba(196, 125, 76, 0.1);
+  background: rgba(188, 67, 39, 0.08);
   font-size: 0.65rem;
   font-weight: 700;
 }
 
 .cat-pill.active .cat-count {
-  color: var(--bg-primary);
-  background: rgba(255, 255, 255, 0.55);
+  color: var(--espresso);
+  background: var(--accent);
 }
 
 .swipe-guide {
@@ -374,7 +437,7 @@ button {
   gap: 7px;
   min-height: 22px;
   padding: 2px 20px 0;
-  color: rgba(245, 245, 240, 0.48);
+  color: var(--text-secondary);
   font-size: 0.68rem;
   pointer-events: none;
   animation: guideFade 4.5s ease forwards;
@@ -407,17 +470,18 @@ button {
 }
 
 .skeleton-card {
-  background: #1C1917;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   padding: 14px;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .skeleton-img {
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
-  background: #1C1917;
+  background: #F0E5D8;
   position: relative;
   overflow: hidden;
   margin-bottom: 12px;
@@ -431,14 +495,14 @@ button {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent 0%, rgba(196,125,76,0.08) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(188,67,39,0.08) 50%, transparent 100%);
   animation: shimmer 1.5s infinite;
 }
 
 .skeleton-text {
   height: 14px;
   border-radius: 6px;
-  background: #1C1917;
+  background: #F0E5D8;
   margin-bottom: 8px;
   position: relative;
   overflow: hidden;
@@ -464,7 +528,7 @@ button {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 40px 24px;
-  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-card);
 }
 
 .error-icon {
@@ -482,15 +546,15 @@ button {
 .retry-btn {
   padding: 10px 28px;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--copper), var(--gold));
-  color: var(--bg-primary);
+  background: var(--primary);
+  color: var(--cream);
   font-weight: 600;
   font-size: 0.9rem;
   transition: transform var(--transition-fast);
 }
 
-.retry-btn:hover { transform: scale(1.05); }
-.retry-btn:active { transform: scale(0.96); }
+.retry-btn:hover { transform: scale(1.05); box-shadow: var(--shadow-action); }
+.retry-btn:active { transform: scale(0.96); box-shadow: var(--shadow-action); }
 
 /* ---------- SWIPER ---------- */
 .swiper {
@@ -512,22 +576,23 @@ button {
 .swiper-slide-active {
   opacity: 1;
   transform: scale(1.05);
-  box-shadow: 0 20px 60px rgba(196, 125, 76, 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 /* ---------- PRODUCT CARDS ---------- */
 .product-card {
-  backdrop-filter: blur(12px);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
   transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 .product-card:hover {
   border-color: var(--copper);
-  box-shadow: 0 20px 50px rgba(196, 125, 76, 0.2);
+  box-shadow: 0 14px 28px -5px rgba(188, 67, 39, 0.14), 0 8px 12px -6px rgba(188, 67, 39, 0.06);
 }
 
 .card-image-wrap {
@@ -554,7 +619,7 @@ button {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 30%;
+  height: 18%;
   background: linear-gradient(to top, var(--bg-card), transparent);
   pointer-events: none;
 }
@@ -568,21 +633,20 @@ button {
   align-items: center;
   min-height: 28px;
   padding: 4px 10px;
-  border: 1px solid rgba(255, 231, 166, 0.35);
+  border: 1px solid rgba(44, 26, 20, 0.08);
   border-radius: 999px;
-  color: #fff7df;
-  background: linear-gradient(135deg, rgba(229, 169, 60, 0.95), rgba(196, 125, 76, 0.95));
-  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.23);
+  color: var(--espresso);
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(188, 67, 39, 0.16);
   font-size: 0.67rem;
   font-weight: 700;
-  backdrop-filter: blur(7px);
 }
 
 .product-badge::before {
   content: '★';
   margin-left: 5px;
   font-size: 0.65rem;
-  color: #fff3b8;
+  color: var(--espresso);
 }
 
 .card-body {
@@ -612,7 +676,7 @@ button {
   display: inline-block;
   font-size: 0.7rem;
   color: var(--copper-light);
-  background: rgba(196, 125, 76, 0.1);
+  background: rgba(188, 67, 39, 0.07);
   padding: 3px 10px;
   border-radius: 999px;
   margin-bottom: 12px;
@@ -639,12 +703,12 @@ button {
 }
 
 .size-pill:hover {
-  background: rgba(196, 125, 76, 0.15);
+  background: rgba(188, 67, 39, 0.07);
 }
 
 .size-pill.active {
-  background: linear-gradient(135deg, var(--copper), var(--gold-dim));
-  color: #fff;
+  background: var(--primary);
+  color: var(--cream);
   border-color: transparent;
   font-weight: 600;
 }
@@ -653,7 +717,7 @@ button {
 .card-price {
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--gold);
+  color: var(--espresso);
   margin-bottom: 14px;
   transition: opacity 0.15s ease;
   direction: ltr;
@@ -671,9 +735,9 @@ button {
 .add-to-cart-btn {
   width: 100%;
   padding: 12px 16px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--copper), var(--gold));
-  color: var(--bg-primary);
+  border-radius: 50px;
+  background: var(--accent);
+  color: var(--espresso);
   font-size: 0.9rem;
   font-weight: 700;
   display: flex;
@@ -685,16 +749,19 @@ button {
 }
 
 .add-to-cart-btn:hover {
-  background: linear-gradient(135deg, var(--gold), var(--copper));
+  background: var(--accent);
+  box-shadow: 0 4px 14px rgba(242, 183, 52, 0.35);
   transform: scale(1.02);
 }
 
 .add-to-cart-btn:active {
   transform: scale(0.97);
+  box-shadow: 0 4px 14px rgba(242, 183, 52, 0.35);
 }
 
 .add-to-cart-btn.success {
-  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  background: var(--primary);
+  color: var(--cream);
   pointer-events: none;
 }
 
@@ -706,7 +773,9 @@ button {
   right: 0;
   z-index: 900;
   padding: 0 0 env(safe-area-inset-bottom, 0px);
-  background: linear-gradient(135deg, var(--copper), var(--gold-dim));
+  background: var(--primary);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -4px 18px rgba(188, 67, 39, 0.12);
   cursor: pointer;
 }
 
@@ -737,8 +806,8 @@ button {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #e74c3c;
-  color: #fff;
+  background: var(--accent);
+  color: var(--espresso);
   font-size: 0.7rem;
   font-weight: 700;
   display: flex;
@@ -759,18 +828,18 @@ button {
 .cart-bar-center {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--bg-primary);
+  color: var(--cream);
 }
 
 .cart-bar-center .muted {
-  opacity: 0.6;
+  opacity: 0.9;
   font-weight: 400;
 }
 
 .cart-bar-right {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--bg-primary);
+  color: var(--cream);
   direction: ltr;
 }
 
@@ -779,7 +848,7 @@ button {
   position: fixed;
   inset: 0;
   z-index: 1100;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(44, 26, 20, 0.5);
   backdrop-filter: blur(4px);
   opacity: 0;
   visibility: hidden;
@@ -799,7 +868,7 @@ button {
   right: 0;
   z-index: 1101;
   max-height: 90vh;
-  background: var(--bg-secondary);
+  background: var(--surface);
   border-top: 2px solid var(--copper);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   transform: translateY(100%);
@@ -827,7 +896,7 @@ button {
   padding: 20px 20px 14px;
   position: sticky;
   top: 0;
-  background: var(--bg-secondary);
+  background: var(--surface);
   z-index: 2;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -842,7 +911,7 @@ button {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.06);
+  background: var(--cream);
   font-size: 1rem;
   color: var(--text-secondary);
   display: flex;
@@ -852,7 +921,7 @@ button {
 }
 
 .drawer-close:hover {
-  background: rgba(255,255,255,0.12);
+  background: rgba(188, 67, 39, 0.08);
 }
 
 /* Cart Items */
@@ -865,7 +934,7 @@ button {
   align-items: center;
   gap: 12px;
   padding: 14px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .cart-item-thumb {
@@ -907,7 +976,7 @@ button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(196, 125, 76, 0.15);
+  background: rgba(188, 67, 39, 0.08);
   color: var(--copper-light);
   font-size: 0.85rem;
   font-weight: 700;
@@ -918,7 +987,7 @@ button {
 }
 
 .qty-btn:hover {
-  background: rgba(196, 125, 76, 0.3);
+  background: rgba(188, 67, 39, 0.16);
 }
 
 .qty-value {
@@ -932,8 +1001,8 @@ button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(231, 76, 60, 0.12);
-  color: #e74c3c;
+  background: rgba(188, 67, 39, 0.07);
+  color: var(--primary);
   font-size: 0.8rem;
   display: flex;
   align-items: center;
@@ -943,13 +1012,13 @@ button {
 }
 
 .delete-btn:hover {
-  background: rgba(231, 76, 60, 0.25);
+  background: rgba(188, 67, 39, 0.14);
 }
 
 .cart-item-subtotal {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--gold);
+  color: var(--espresso);
   flex-shrink: 0;
   min-width: 60px;
   text-align: left;
@@ -962,7 +1031,7 @@ button {
   border-top: 1px solid var(--border-subtle);
   position: sticky;
   bottom: 0;
-  background: var(--bg-secondary);
+  background: var(--surface);
 }
 
 .drawer-delivery {
@@ -987,16 +1056,16 @@ button {
 .drawer-total-value {
   font-size: 1.2rem;
   font-weight: 700;
-  color: var(--copper);
+  color: var(--espresso);
   direction: ltr;
 }
 
 .checkout-btn {
   width: 100%;
   padding: 14px 20px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--copper), var(--gold));
-  color: var(--bg-primary);
+  border-radius: 50px;
+  background: var(--primary);
+  color: var(--cream);
   font-size: 1rem;
   font-weight: 700;
   display: flex;
@@ -1008,11 +1077,12 @@ button {
 
 .checkout-btn:hover {
   transform: scale(1.02);
-  background: linear-gradient(135deg, var(--gold), var(--copper));
+  box-shadow: var(--shadow-action);
 }
 
 .checkout-btn:active {
   transform: scale(0.97);
+  box-shadow: var(--shadow-action);
 }
 
 /* Empty Cart */
@@ -1067,7 +1137,7 @@ button {
   gap: 12px;
   width: 100%;
   padding: 16px 20px;
-  border-radius: var(--radius-md);
+  border-radius: 50px;
   background: #25D366;
   color: #fff;
   font-size: 0.95rem;
@@ -1140,7 +1210,6 @@ button {
 
 .toast {
   background: var(--bg-card);
-  backdrop-filter: blur(12px);
   border-radius: var(--radius-sm);
   padding: 12px 18px;
   border-right: 3px solid var(--copper);
@@ -1150,7 +1219,7 @@ button {
   white-space: nowrap;
   animation: toastSlideIn 0.3s ease forwards;
   pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-card);
 }
 
 .toast.fade-out {
@@ -1187,8 +1256,8 @@ button {
 
 /* ---------- CART BAR PULSE (when has items) ---------- */
 @keyframes cartBarPulse {
-  0%, 100% { box-shadow: 0 -2px 0 0 rgba(229,169,60,0); }
-  50%       { box-shadow: 0 -6px 20px 0 rgba(229,169,60,0.35); }
+  0%, 100% { box-shadow: 0 -2px 8px rgba(188,67,39,0.08); }
+  50%       { box-shadow: 0 -6px 20px rgba(188,67,39,0.2); }
 }
 
 .cart-bar.has-items {
@@ -1217,7 +1286,7 @@ button {
 
 .swipe-hint-text {
   font-size: 0.75rem;
-  color: rgba(255,255,255,0.7);
+  color: var(--text-secondary);
   font-weight: 600;
   letter-spacing: 0.05em;
 }
@@ -1279,9 +1348,9 @@ button {
 
 /* ---------- PRICE COUNT-UP FLASH ---------- */
 @keyframes priceFlash {
-  0%   { color: var(--gold); transform: scale(1); }
-  40%  { color: #fff;        transform: scale(1.12); }
-  100% { color: var(--gold); transform: scale(1); }
+  0%   { color: var(--cream); transform: scale(1); }
+  40%  { color: var(--accent); transform: scale(1.12); }
+  100% { color: var(--cream); transform: scale(1); }
 }
 
 .cart-bar-right.updating {
