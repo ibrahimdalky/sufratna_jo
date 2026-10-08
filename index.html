@@ -38,10 +38,13 @@
   <div class="main-container">
     <!-- Header -->
     <header class="site-header" id="siteHeader">
-      <div class="logo-wrap">
-        <div class="logo-placeholder" id="logoPlaceholder"></div>
-        <img class="brand-logo" id="brandLogo" src="" alt="سفرتنا" style="display:none;" />
-      </div>
+      <button class="logo-wrap" id="interactiveLogo" type="button" aria-label="شعار سفرتنا التفاعلي">
+        <span class="logo-motion">
+          <span class="logo-touch-glow" aria-hidden="true"></span>
+          <span class="logo-placeholder" id="logoPlaceholder"></span>
+          <img class="brand-logo" id="brandLogo" src="" alt="سفرتنا" draggable="false" style="display:none;" />
+        </span>
+      </button>
     </header>
 
     <!-- Mobile-first journey hero -->
@@ -128,5 +131,6 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <!-- App JS -->
   <script src="app.js"></script>
+  <script src="logo-interaction.js"></script>
 </body>
 </html>

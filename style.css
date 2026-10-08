@@ -167,10 +167,39 @@ button:focus-visible {
   align-items: center;
   width: var(--logo-size);
   min-height: var(--logo-size);
+  padding: 0;
+  border-radius: 50%;
+  touch-action: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  cursor: grab;
 }
 
-.logo-wrap::before,
-.logo-wrap::after {
+.logo-wrap.is-dragging { cursor: grabbing; }
+
+.logo-motion {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  transform: translate3d(var(--logo-x, 0px), var(--logo-y, 0px), 0) rotate(var(--logo-rotate, 0deg)) scale(var(--logo-scale, 1));
+}
+
+.logo-wrap.is-dragging .logo-motion { will-change: transform; }
+
+.logo-touch-glow {
+  position: absolute;
+  inset: -28px;
+  background: radial-gradient(ellipse closest-side at var(--logo-light-x, 50%) var(--logo-light-y, 50%), rgba(242, 183, 52, 0.65), rgba(188, 67, 39, 0.22) 48%, transparent 100%);
+  opacity: var(--logo-energy, 0);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.logo-motion::before,
+.logo-motion::after {
   content: '';
   position: absolute;
   border-radius: 50%;
@@ -178,13 +207,13 @@ button:focus-visible {
   z-index: -1;
 }
 
-.logo-wrap::before {
+.logo-motion::before {
   inset: -24px;
   background: radial-gradient(circle, rgba(242, 183, 52, 0.4) 0%, rgba(188, 67, 39, 0.2) 42%, transparent 72%);
   animation: logoHalo 4s ease-in-out infinite;
 }
 
-.logo-wrap::after {
+.logo-motion::after {
   inset: 12px;
   box-shadow: 0 0 24px 9px rgba(242, 183, 52, 0.35), 0 0 45px 14px rgba(188, 67, 39, 0.19);
 }
@@ -217,6 +246,7 @@ button:focus-visible {
   height: var(--logo-size);
   object-fit: contain;
   filter: drop-shadow(0 0 10px rgba(242, 183, 52, 0.65)) drop-shadow(0 7px 18px rgba(188, 67, 39, 0.32));
+  -webkit-user-drag: none;
 }
 
 .header-divider {
@@ -662,14 +692,14 @@ button:focus-visible {
   z-index: 3;
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 5px 13px;
   border: 1px solid rgba(44, 26, 20, 0.08);
   border-radius: 999px;
   color: var(--espresso);
   background: var(--accent);
   box-shadow: 0 4px 12px rgba(188, 67, 39, 0.16);
-  font-size: 0.67rem;
+  font-size: 0.8rem;
   font-weight: 700;
   pointer-events: none;
 }
@@ -677,7 +707,7 @@ button:focus-visible {
 .product-badge::before {
   content: '★';
   margin-left: 5px;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--espresso);
 }
 
