@@ -83,6 +83,9 @@
   var categories = [];
   var activeCategory = 'الكل';
   var cart = [];
+  var lastRemovedItem = null;
+  var undoRemovalTimer = 0;
+  var sharedDishId = new URLSearchParams(window.location.search).get('dish');
   var lastCartAddition = null;
   var cartNoticeTimer = 0;
   var CART_STORAGE_KEY = 'safratna_cart_v1';
@@ -389,6 +392,7 @@
 
     $skeletonLoader.style.display = 'none';
     $productSwiper.style.display = 'block';
+    openSharedDish();
   }
 
   /* ──────────── LOGO ──────────── */
@@ -547,6 +551,7 @@
               '<button class="add-to-cart-btn" data-idx="' + idx + '">🛒 أضف إلى السلة</button>' +
             '</div>' +
           '</div>' +
+          '<button type="button" class="side-product-button" data-idx="' + idx + '" aria-label="قرّب ' + escapeAttr(p.name) + '" tabindex="-1"></button>' +
         '</div>';
     }
 
@@ -616,15 +621,20 @@
     function showCurrent(index) {
       var next = slides[wrap(index)].panel;
       if (next === current) return;
-      if (current) {
-        if (current.contains(document.activeElement)) $productSwiper.focus({ preventScroll: true });
-        current.classList.remove('is-current');
-        current.setAttribute('inert', '');
-        current.setAttribute('aria-hidden', 'true');
-      }
-      next.classList.add('is-current');
-      next.removeAttribute('inert');
-      next.removeAttribute('aria-hidden');
+      if (current && current.contains(document.activeElement)) $productSwiper.focus({ preventScroll: true });
+      var left = slides[wrap(index + 1)].panel;
+      var right = slides[wrap(index - 1)].panel;
+      slides.forEach(function (item) {
+        var panel = item.panel;
+        var active = panel === next;
+        var side = !active && (panel === left || panel === right);
+        panel.classList.toggle('is-current', active);
+        panel.classList.toggle('is-side-choice', side);
+        panel.toggleAttribute('inert', !active && !side);
+        if (active || side) panel.removeAttribute('aria-hidden');
+        else panel.setAttribute('aria-hidden', 'true');
+        if (item.card) item.card.toggleAttribute('inert', !active);
+      });
       current = next;
       preloadImage(index);
       preloadImage(index - 1);
@@ -781,9 +791,11 @@
       $swiperWrapper.style.removeProperty('transform');
       slides.forEach(function (item, index) {
         item.panel.classList.remove('is-current');
+        item.panel.classList.remove('is-side-choice');
         item.panel.removeAttribute('inert');
         item.panel.removeAttribute('aria-hidden');
         item.panel.style.removeProperty('opacity');
+        if (item.card) item.card.removeAttribute('inert');
         item.opacity = null;
         var trigger = item.panel.querySelector('.card-image-trigger');
         if (trigger) trigger.setAttribute('aria-describedby', 'gridCardPrice' + index);
@@ -922,6 +934,15 @@
     }, true);
 
     $swiperWrapper.addEventListener('click', function (event) {
+      var side = event.target.closest('.side-product-button');
+      if (!gridMode && side && side.closest('.is-side-choice')) {
+        clearSuggestion();
+        var target = Number(side.dataset.idx) * angleStep;
+        var distance = ((target - angle + 540) % 360) - 180;
+        holdFor(5500);
+        centerCard(angle + distance, 340);
+        return;
+      }
       if (slides.length <= 1 || !current || !current.contains(event.target) || event.target.closest('.card-image-trigger')) return;
       holdFor(5500);
       centerCard(Math.round(angle / angleStep) * angleStep);
@@ -1023,7 +1044,7 @@
         suppressClick = false;
         width = $productSwiper.clientWidth || Math.min(window.innerWidth, 480);
         slides = Array.from($swiperWrapper.children, function (panel) {
-          return { panel: panel, image: panel.querySelector('img'), opacity: 1, faceAway: false };
+          return { panel: panel, card: panel.querySelector('.product-card'), image: panel.querySelector('img'), opacity: 1, faceAway: false };
         });
         prioritizeOpeningPhoto();
         angleStep = 360 / Math.max(1, slides.length);
@@ -1044,19 +1065,28 @@
 
   function renderProductDetails(product, index) {
     if (stopPhotoFlight) stopPhotoFlight();
+    resetDetailsDrag();
     var card = productCardAt(index);
     var cardImage = card ? card.querySelector('img') : null;
     var imageSource = (cardImage && cardImage.currentSrc) || product.image_url || PLACEHOLDER_SVG;
     $productDetails.innerHTML =
       '<div class="product-details-panel">' +
+        '<button type="button" class="product-details-grab" aria-label="اسحب لتحت أو اضغط لإغلاق التفاصيل"><span aria-hidden="true"></span></button>' +
         '<header class="product-details-header">' +
           '<div>' +
             (product.category ? '<p class="product-details-category">' + escapeHTML(product.category) + '</p>' : '') +
             '<h2 id="productDetailsTitle">' + escapeHTML(product.name) + '</h2>' +
           '</div>' +
-          '<button type="button" class="product-details-close" aria-label="إغلاق تفاصيل الصنف" autofocus>×</button>' +
+          '<div class="product-details-actions">' +
+            (product.id ? '<button type="button" class="product-share-button" aria-label="ابعثها لصاحبك">شارك <span aria-hidden="true">↗</span></button>' : '') +
+            '<button type="button" class="product-details-close" aria-label="إغلاق تفاصيل الصنف" autofocus>×</button>' +
+          '</div>' +
         '</header>' +
         '<div class="product-details-content">' +
+          '<div class="product-share-area">' +
+            '<span class="product-share-status" role="status"></span>' +
+            '<label class="product-share-fallback" hidden>رابط الصنف <input type="url" readonly></label>' +
+          '</div>' +
           '<div class="product-details-summary">' +
             '<img class="product-details-photo" src="' + escapeAttr(imageSource) + '" alt="" decoding="async" />' +
             (product.description ? '<p>' + escapeHTML(product.description) + '</p>' : '') +
@@ -1161,6 +1191,90 @@
     }, [image, thumbnail], 285);
   }
 
+  function openSharedDish() {
+    if (!sharedDishId) return;
+    var index = filteredProducts.findIndex(function (product) { return product.id === sharedDishId; });
+    if (index < 0) return;
+    sharedDishId = null;
+    productGallery.lockToProduct(index);
+    var trigger = productCardAt(index).querySelector('.card-image-trigger');
+    trigger.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    openProductDetails(trigger);
+  }
+
+  async function shareDish(button) {
+    if (!detailsProduct || !detailsProduct.id) return;
+    var link = new URL(window.location.pathname, window.location.origin);
+    link.searchParams.set('dish', detailsProduct.id);
+    var payload = { title: detailsProduct.name + ' | سفرتنا', url: link.href };
+    var area = $productDetails.querySelector('.product-share-area');
+    var status = area.querySelector('.product-share-status');
+    if (navigator.share) {
+      try { await navigator.share(payload); return; }
+      catch (error) { if (error.name === 'AbortError') return; }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(link.href);
+        status.textContent = 'تم نسخ رابط الصنف';
+        return;
+      } catch (error) { /* The link can still be copied from the field. */ }
+    }
+    if (!button.isConnected || !$productDetails.open) return;
+    var fallback = area.querySelector('.product-share-fallback');
+    fallback.hidden = false;
+    var input = fallback.querySelector('input');
+    input.value = link.href;
+    input.focus({ preventScroll: true });
+    input.select();
+  }
+
+  var detailsDrag = null;
+  var detailsReturn = null;
+  var ignoreGrabClick = false;
+
+  function resetDetailsDrag() {
+    detailsDrag = null;
+    ignoreGrabClick = false;
+    if (detailsReturn) { detailsReturn.cancel(); detailsReturn = null; }
+    $productDetails.classList.remove('is-gesture-positioned');
+    $productDetails.style.removeProperty('--details-drag-y');
+    $productDetails.style.removeProperty('--details-backdrop-opacity');
+  }
+
+  function positionDetailsDrag(offset) {
+    $productDetails.classList.add('is-gesture-positioned');
+    $productDetails.style.setProperty('--details-drag-y', offset + 'px');
+    $productDetails.style.setProperty('--details-backdrop-opacity', String(Math.max(0.12, 1 - offset / 330)));
+  }
+
+  function finishDetailsDrag(event, cancelled) {
+    if (!detailsDrag || detailsDrag.id !== event.pointerId) return;
+    var drag = detailsDrag;
+    detailsDrag = null;
+    if (!drag.moving) return;
+    ignoreGrabClick = true;
+    var distance = drag.lastY - drag.startY;
+    if (!cancelled && (distance >= 90 || (distance >= 34 && drag.speed > 0.6 && performance.now() - drag.time < 90))) {
+      requestDetailsClose();
+      return;
+    }
+    if (feedbackMotionPreference.matches || !$productDetails.animate) {
+      positionDetailsDrag(0);
+      return;
+    }
+    var animation = $productDetails.animate([
+      { transform: getComputedStyle($productDetails).transform }, { transform: 'translateY(0)' }
+    ], { duration: 190, easing: 'ease-out', fill: 'forwards' });
+    detailsReturn = animation;
+    animation.finished.then(function () {
+      if (detailsReturn !== animation) return;
+      detailsReturn = null;
+      positionDetailsDrag(0);
+      animation.cancel();
+    }, function () {});
+  }
+
   function requestDetailsClose() {
     if (!$productDetails.open || detailsExit) return;
     if (feedbackMotionPreference.matches || typeof $productDetails.animate !== 'function') {
@@ -1191,7 +1305,33 @@
   var pressedDetailsBackdrop = false;
   $productDetails.addEventListener('pointerdown', function (event) {
     pressedDetailsBackdrop = event.target === $productDetails;
+    var handle = event.target.closest('.product-details-grab');
+    if (!handle || !event.isPrimary || event.button !== 0 || detailsExit) return;
+    ignoreGrabClick = false;
+    var offset = Math.max(0, $productDetails.getBoundingClientRect().bottom - window.innerHeight);
+    if (detailsReturn) {
+      detailsReturn.cancel();
+      detailsReturn = null;
+      positionDetailsDrag(offset);
+    }
+    detailsDrag = { id: event.pointerId, startY: event.clientY, lastY: event.clientY,
+      offset: offset, time: performance.now(), speed: 0, moving: false };
+    handle.setPointerCapture(event.pointerId);
   });
+  $productDetails.addEventListener('pointermove', function (event) {
+    if (!detailsDrag || detailsDrag.id !== event.pointerId) return;
+    var distance = event.clientY - detailsDrag.startY;
+    if (!detailsDrag.moving && Math.abs(distance) < 7) return;
+    detailsDrag.moving = true;
+    var now = performance.now();
+    detailsDrag.speed = (event.clientY - detailsDrag.lastY) / Math.max(8, now - detailsDrag.time);
+    detailsDrag.lastY = event.clientY;
+    detailsDrag.time = now;
+    positionDetailsDrag(Math.max(0, Math.min(window.innerHeight, detailsDrag.offset + distance)));
+  });
+  $productDetails.addEventListener('pointerup', function (event) { finishDetailsDrag(event, false); });
+  $productDetails.addEventListener('pointercancel', function (event) { finishDetailsDrag(event, true); });
+  $productDetails.addEventListener('lostpointercapture', function (event) { finishDetailsDrag(event, true); });
   $productDetails.addEventListener('cancel', function (event) {
     event.preventDefault();
     requestDetailsClose();
@@ -1205,6 +1345,7 @@
       exit.cancel();
     }
     $productDetails.classList.remove('is-closing');
+    resetDetailsDrag();
     document.documentElement.classList.remove('has-product-details');
     if (detailsTrigger && detailsTrigger.isConnected && !detailsTrigger.closest('[inert]')) {
       detailsTrigger.focus({ preventScroll: true });
@@ -1251,6 +1392,12 @@
     var target = event.target;
     var inDetails = event.currentTarget === $productDetails;
     if (inDetails && detailsExit) return;
+    if (inDetails && target.closest('.product-details-grab')) {
+      if (!ignoreGrabClick || event.detail === 0) requestDetailsClose();
+      return;
+    }
+    var share = inDetails && target.closest('.product-share-button');
+    if (share) { shareDish(share); return; }
     if (inDetails && (target.closest('.product-details-close') ||
         (target === $productDetails && pressedDetailsBackdrop))) {
       requestDetailsClose();
@@ -1345,13 +1492,32 @@
   }
 
   function removeFromCart(productId, size) {
-    var next = [];
-    for (var i = 0; i < cart.length; i++) {
-      if (!(cart[i].productId === productId && cart[i].size === size)) {
-        next.push(cart[i]);
-      }
-    }
-    cart = next;
+    var index = cart.findIndex(function (item) { return item.productId === productId && item.size === size; });
+    if (index < 0) return;
+    clearTimeout(undoRemovalTimer);
+    lastRemovedItem = { item: cart.splice(index, 1)[0], index: index };
+    undoRemovalTimer = setTimeout(clearUndoRemoval, 6500);
+    saveCart();
+    updateCartUI();
+    renderDrawerCart();
+  }
+
+  function clearUndoRemoval() {
+    clearTimeout(undoRemovalTimer);
+    lastRemovedItem = null;
+    var notice = document.getElementById('cartUndoNotice');
+    if (notice) notice.remove();
+  }
+
+  function undoRemoval() {
+    if (!lastRemovedItem) return;
+    var restored = lastRemovedItem.item;
+    var existing = cart.find(function (item) {
+      return item.productId === restored.productId && item.size === restored.size;
+    });
+    if (existing) existing.quantity += restored.quantity;
+    else cart.splice(lastRemovedItem.index, 0, restored);
+    clearUndoRemoval();
     saveCart();
     updateCartUI();
     renderDrawerCart();
@@ -1360,11 +1526,12 @@
   function updateQuantity(productId, size, delta) {
     for (var i = 0; i < cart.length; i++) {
       if (cart[i].productId === productId && cart[i].size === size) {
-        cart[i].quantity += delta;
-        if (cart[i].quantity <= 0) {
+        var nextQuantity = cart[i].quantity + delta;
+        if (nextQuantity <= 0) {
           removeFromCart(productId, size);
           return;
         }
+        cart[i].quantity = nextQuantity;
         break;
       }
     }
@@ -1506,17 +1673,19 @@
   }
 
   function renderDrawerCart() {
+    var undoHTML = lastRemovedItem ? '<div class="cart-undo-notice" id="cartUndoNotice">' +
+      '<span role="status">انحذف ' + escapeHTML(lastRemovedItem.item.name) + '</span>' +
+      '<button type="button" data-action="undo-delete">تراجع</button></div>' : '';
+    var header = '<div class="drawer-header receipt-header">' +
+      '<div><span class="receipt-brand">طلبك من سفرتنا</span><span class="drawer-title">سلة المشتريات</span></div>' +
+      '<button type="button" class="drawer-close" data-action="close" aria-label="إغلاق السلة">✕</button></div>';
     if (cart.length === 0) {
-      $drawerContent.innerHTML =
-        '<div class="drawer-header">' +
-          '<span class="drawer-title">سلة المشتريات 🛒</span>' +
-          '<button class="drawer-close" data-action="close">✕</button>' +
-        '</div>' +
+      $drawerContent.innerHTML = header +
         '<div class="empty-cart">' +
           '<span class="empty-cart-icon">🛒</span>' +
           '<p class="empty-cart-title">سلتك فارغة</p>' +
           '<p class="empty-cart-sub">أضف بعض المنتجات</p>' +
-        '</div>';
+        '</div>' + (undoHTML ? '<div class="drawer-footer">' + undoHTML + '</div>' : '');
       bindDrawerEvents();
       return;
     }
@@ -1536,10 +1705,10 @@
             (sizeText ? '<div class="cart-item-size">' + escapeHTML(sizeText) + '</div>' : '') +
           '</div>' +
           '<div class="cart-item-controls">' +
-            '<button class="delete-btn" data-action="delete" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">🗑</button>' +
-            '<button class="qty-btn" data-action="minus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">−</button>' +
+            '<button class="qty-btn" aria-label="خفّض كمية ' + escapeAttr(item.name) + '" data-action="minus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">−</button>' +
             '<span class="qty-value">' + item.quantity + '</span>' +
-            '<button class="qty-btn" data-action="plus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">+</button>' +
+            '<button class="qty-btn" aria-label="زيد كمية ' + escapeAttr(item.name) + '" data-action="plus" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">+</button>' +
+            '<button class="delete-btn" aria-label="احذف ' + escapeAttr(item.name) + '" data-action="delete" data-pid="' + escapeAttr(item.productId) + '" data-size="' + escapeAttr(item.size || '') + '">حذف</button>' +
           '</div>' +
           '<span class="cart-item-subtotal">' + subtotal + ' د.أ</span>' +
         '</div>';
@@ -1547,19 +1716,16 @@
 
     var total = getCartTotal().toFixed(2);
 
-    $drawerContent.innerHTML =
-      '<div class="drawer-header">' +
-        '<span class="drawer-title">سلة المشتريات 🛒</span>' +
-        '<button class="drawer-close" data-action="close">✕</button>' +
-      '</div>' +
+    $drawerContent.innerHTML = header +
       '<div class="drawer-items">' + itemsHTML + '</div>' +
       '<div class="drawer-footer">' +
+        undoHTML +
         '<p class="drawer-delivery">رسوم التوصيل: مجاناً 🚚</p>' +
         '<div class="drawer-total-row">' +
           '<span class="drawer-total-label">المجموع الكلي:</span>' +
           '<span class="drawer-total-value">' + total + ' د.أ</span>' +
         '</div>' +
-        '<button class="checkout-btn" data-action="checkout">متابعة الطلب ←</button>' +
+        '<button class="checkout-btn" data-action="checkout">' + WHATSAPP_SVG + ' متابعة عبر واتساب</button>' +
       '</div>';
 
     bindDrawerEvents();
@@ -1592,6 +1758,9 @@
           break;
         case 'delete':
           removeFromCart(pid, size);
+          break;
+        case 'undo-delete':
+          undoRemoval();
           break;
         case 'checkout':
           showRepSelection();
