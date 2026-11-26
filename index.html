@@ -12,9 +12,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600;700&display=swap" rel="stylesheet" />
 
-  <!-- Swiper -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-
   <!-- App Styles -->
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -53,7 +50,7 @@
       <div class="journey-hero-copy">
         <span class="journey-eyebrow">بين المحاضرات، في وقت للّقمة الزاكية</span>
         <h1 id="journeyTitle"><span class="hero-brand-line">سفرتنا..</span> هي خدمة مع أكلات زاكية <span class="hero-student-icon" aria-hidden="true">🎓</span></h1>
-        <p>اسحب يميناً واكتشف أكلات سفرتنا وحدة وراء الثانية.</p>
+        <p>اسحب يميناً أو يساراً لاكتشاف أكلات سفرتنا.</p>
       </div>
       <div class="journey-hero-actions">
         <button class="journey-start-btn" id="journeyStartBtn" type="button"><svg class="cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14" /></svg> استكشف المنيو <span aria-hidden="true">←</span></button>
@@ -71,7 +68,7 @@
 
     <div class="swipe-guide" id="swipeGuide" role="status">
       <span class="swipe-guide-finger" aria-hidden="true">☝</span>
-      <span>اسحب لليمين لاكتشاف باقي الأصناف</span>
+      <span>اسحب يميناً أو يساراً لاكتشاف باقي الأصناف</span>
     </div>
 
     <!-- Skeleton Loader -->
@@ -91,9 +88,9 @@
       </div>
     </div>
 
-    <!-- Swiper -->
-    <div class="swiper" id="productSwiper" style="display:none;">
-      <div class="swiper-wrapper" id="swiperWrapper">
+    <!-- Product gallery -->
+    <div class="product-gallery" id="productSwiper" role="region" aria-label="معرض أصناف سفرتنا" tabindex="0" style="display:none;">
+      <div class="product-gallery-track" id="swiperWrapper">
         <!-- slides injected by JS -->
       </div>
     </div>
@@ -127,8 +124,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- Swiper JS -->
-  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <!-- App JS -->
   <script src="app.js"></script>
   <script src="logo-interaction.js"></script>

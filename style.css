@@ -597,28 +597,46 @@ button:focus-visible {
 .retry-btn:hover { transform: scale(1.05); box-shadow: var(--shadow-action); }
 .retry-btn:active { transform: scale(0.96); box-shadow: var(--shadow-action); }
 
-/* ---------- SWIPER ---------- */
-.swiper {
+/* ---------- PRODUCT GALLERY ---------- */
+.product-gallery {
   width: 100%;
   padding-top: 64px;
   padding-bottom: 60px;
   overflow: hidden;
-  touch-action: pan-y;
+  isolation: isolate;
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.swiper-slide {
-  width: 300px !important;
-  max-width: 85vw !important;
-  height: auto;
-  transition: transform 0.4s ease, opacity 0.4s ease;
-  opacity: 0.6;
+.product-gallery:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 
-.swiper-slide-active {
-  opacity: 1;
-  transform: scale(1.05);
-  border-radius: var(--radius-lg);
-  box-shadow: none;
+.product-gallery-track {
+  display: grid;
+  justify-items: center;
+  align-items: start;
+}
+
+.product-slide {
+  grid-area: 1 / 1;
+  position: relative;
+  width: min(300px, 85vw);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.product-slide.is-nearby { visibility: visible; }
+.product-slide.is-current { pointer-events: auto; }
+
+.product-gallery.is-dragging .product-slide.is-nearby {
+  will-change: transform, opacity;
+}
+
+.product-gallery.is-dragging .product-slide {
+  pointer-events: none;
 }
 
 /* ---------- PRODUCT CARDS ---------- */
@@ -644,7 +662,7 @@ button:focus-visible {
   z-index: -1;
 }
 
-.swiper-slide-active .product-card::before {
+.product-slide.is-current .product-card::before {
   animation: mealGlow 3.8s ease-in-out infinite;
 }
 
@@ -1405,31 +1423,6 @@ button:focus-visible {
   100% { opacity: 0; }
 }
 
-/* ---------- CARD ENTRANCE STAGGER ---------- */
-@keyframes cardEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(28px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.swiper-slide.entering {
-  animation: cardEntrance 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.swiper-slide.entering:nth-child(1) { animation-delay: 0ms; }
-.swiper-slide.entering:nth-child(2) { animation-delay: 90ms; }
-.swiper-slide.entering:nth-child(3) { animation-delay: 180ms; }
-.swiper-slide.entering:nth-child(4) { animation-delay: 270ms; }
-.swiper-slide.entering:nth-child(5) { animation-delay: 360ms; }
-.swiper-slide.entering:nth-child(6) { animation-delay: 450ms; }
-.swiper-slide.entering:nth-child(7) { animation-delay: 540ms; }
-.swiper-slide.entering:nth-child(8) { animation-delay: 630ms; }
-
 /* ---------- FLY-TO-CART ARC (enhanced) ---------- */
 .fly-clone {
   position: fixed;
@@ -1479,8 +1472,8 @@ button:focus-visible {
 }
 
 @media (max-width: 360px) {
-  .swiper-slide {
-    width: 260px !important;
+  .product-slide {
+    width: min(260px, 85vw);
   }
   .card-body {
     padding: 12px;

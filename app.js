@@ -83,7 +83,6 @@
   var categories = [];
   var activeCategory = 'الكل';
   var cart = [];
-  var swiperInstance = null;
   var CART_STORAGE_KEY = 'safratna_cart_v1';
 
   /* ──────────── DOM REFERENCES ──────────── */
@@ -511,8 +510,8 @@
 
   function renderProducts() {
     if (filteredProducts.length === 0) {
-      $swiperWrapper.innerHTML = '<div class="swiper-slide"><div class="product-card"><div class="card-body" style="text-align:center;padding:40px 20px;"><p style="color:var(--text-secondary);">لا توجد منتجات في هذا القسم</p></div></div></div>';
-      initSwiper();
+      $swiperWrapper.innerHTML = '<div class="product-slide"><div class="product-card"><div class="card-body" style="text-align:center;padding:40px 20px;"><p style="color:var(--text-secondary);">لا توجد منتجات في هذا القسم</p></div></div></div>';
+      productGallery.reset();
       return;
     }
 
@@ -526,7 +525,7 @@
       if (p.sizes.length > 0) {
         sizesHTML = '<div class="size-selector">';
         for (var si = 0; si < p.sizes.length; si++) {
-          var act = si === 0 ? ' active' : '';
+          var act = p.sizes[si] === p.selectedSize ? ' active' : '';
           sizesHTML += '<button class="size-pill' + act + '" data-idx="' + idx + '" data-si="' + si + '">' + escapeHTML(p.sizes[si].label) + '</button>';
         }
         sizesHTML += '</div>';
@@ -539,15 +538,15 @@
       var badgeHTML = showBestseller
         ? '<span class="bestseller-hat" aria-hidden="true"><svg class="chef-hat-icon" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg"><path d="M30 56C15 58 5 47 8 31C11 16 25 9 40 15C47 0 71 0 82 17C99 9 116 24 112 41C110 56 99 63 87 59C70 62 48 62 30 56Z" fill="#F2B734" stroke="#FFD879" stroke-width="1.5"/><path d="M31 62Q58 68 88 62L86 92Q59 88 33 94Z" fill="#F2B734" stroke="#FFD879" stroke-width="1.5"/><path d="M20 31Q22 20 34 22M49 17Q60 10 70 19" fill="none" stroke="#FFE6A8" stroke-width="3" stroke-linecap="round" opacity="0.7"/></svg></span><span class="product-badge">الأكثر طلباً</span>'
         : '';
-      var imageLoading = idx < 2 ? 'eager' : 'lazy';
-      var imagePriority = idx < 2 ? 'high' : 'auto';
+      var imageSource = idx === 0 ? 'src' : 'data-gallery-src';
+      var imagePriority = idx === 0 ? 'high' : 'auto';
 
       html +=
-        '<div class="swiper-slide" data-idx="' + idx + '">' +
+        '<div class="product-slide" data-idx="' + idx + '">' +
           '<div class="product-card' + (showBestseller ? ' is-bestseller' : '') + '">' +
             badgeHTML +
             '<div class="card-image-wrap">' +
-              '<img src="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" loading="' + imageLoading + '" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+              '<img ' + imageSource + '="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" draggable="false" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
             '</div>' +
             '<div class="card-body">' +
               '<span class="card-category">' + escapeHTML(p.category) + '</span>' +
@@ -565,62 +564,234 @@
     }
 
     $swiperWrapper.innerHTML = html;
-    initSwiper();
+    productGallery.reset();
   }
 
   /* ══════════════════════════════════════════
-     7. SWIPER INITIALIZATION
+     7. CIRCULAR PRODUCT GALLERY
      ══════════════════════════════════════════ */
 
-  function preloadNearbyImages(swiper) {
-    if (!swiper || !swiper.slides) return;
-    var center = swiper.activeIndex || 0;
-    for (var offset = -2; offset <= 2; offset++) {
-      var slide = swiper.slides[center + offset];
-      if (!slide) continue;
-      var img = slide.querySelector('img');
-      if (img) {
-        img.loading = 'eager';
-        img.fetchPriority = 'high';
-      }
-    }
-  }
+  var productGallery = (function () {
+    var slides = [];
+    var visible = new Set();
+    var current = null;
+    var position = 0;
+    var width = 0;
+    var frame = 0;
+    var snapTarget = null;
+    var gesture = null;
+    var suppressClick = false;
+    var hasSwiped = false;
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  function initSwiper() {
-    if (swiperInstance) {
-      swiperInstance.destroy(true, true);
-      swiperInstance = null;
+    function wrap(index) {
+      return ((index % slides.length) + slides.length) % slides.length;
     }
-    setTimeout(function () {
-      swiperInstance = new Swiper('#productSwiper', {
-        effect: 'coverflow',
-        grabCursor: true,
-        centeredSlides: true,
-        slidesPerView: 'auto',
-        initialSlide: 0,
-        spaceBetween: 20,
-        coverflowEffect: {
-          rotate: 0,
-          stretch: 0,
-          depth: 120,
-          modifier: 2,
-          slideShadows: false
-        },
-        keyboard: { enabled: true },
-        touchRatio: 1.5,
-         threshold: 5,
-         on: {
-           init: function (swiper) {
-             preloadNearbyImages(swiper);
-           },
-           slideChange: function () {
-             preloadNearbyImages(this);
-             if ($swipeGuide && this.activeIndex > 0) $swipeGuide.classList.add('is-hidden');
-           }
-        }
+
+    function preloadImage(index) {
+      var image = slides[wrap(index)].querySelector('img[data-gallery-src]');
+      if (!image) return;
+      image.src = image.dataset.gallerySrc;
+      image.removeAttribute('data-gallery-src');
+    }
+
+    function showCurrent(index) {
+      var next = slides[wrap(index)];
+      if (next === current) return;
+      if (current) {
+        if (current.contains(document.activeElement)) $productSwiper.focus({ preventScroll: true });
+        current.classList.remove('is-current');
+        current.setAttribute('inert', '');
+        current.setAttribute('aria-hidden', 'true');
+      }
+      next.classList.add('is-current');
+      next.removeAttribute('inert');
+      next.removeAttribute('aria-hidden');
+      current = next;
+      preloadImage(index);
+      preloadImage(index - 1);
+      preloadImage(index + 1);
+    }
+
+    function paint() {
+      if (!slides.length) return;
+      var center = Math.round(position);
+      showCurrent(center);
+      var nearby = new Set();
+      // Slots enter and leave behind the sides of the ring. The same product
+      // node can wrap around without duplicating its buttons or selected size.
+      var visibleRange = slides.length <= 2 ? 1 : 1.5;
+      for (var slot = Math.ceil(position - visibleRange); slot <= Math.floor(position + visibleRange); slot++) {
+        var offset = position - slot;
+        var distance = Math.abs(offset);
+        if (distance >= visibleRange) continue;
+        var slide = slides[wrap(slot)];
+        if (nearby.has(slide)) continue;
+        nearby.add(slide);
+        var angle = offset * Math.PI / 4;
+        var depth = 1 - Math.cos(angle);
+        var x = reducedMotion.matches ? offset * width * 0.62 : Math.sin(angle) * width * 0.88;
+        var y = reducedMotion.matches ? 0 : depth * width * 0.09;
+        var z = reducedMotion.matches ? 0 : -depth * width;
+        var rotation = reducedMotion.matches ? 0 : offset * 45;
+        var fade = Math.min(1, (visibleRange - distance) / 0.28);
+        slide.style.transform = 'perspective(900px) translate3d(' + x + 'px,' + y + 'px,' + z + 'px) rotateY(' + rotation + 'deg)';
+        slide.style.opacity = (1 - distance * 0.23) * fade;
+        slide.style.zIndex = Math.round(100 - distance * 60);
+        if (!visible.has(slide)) slide.classList.add('is-nearby');
+      }
+      visible.forEach(function (slide) {
+        if (!nearby.has(slide)) slide.classList.remove('is-nearby');
       });
-    }, 50);
-  }
+      visible = nearby;
+    }
+
+    function stopMotion() {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      snapTarget = null;
+    }
+
+    function snapTo(target) {
+      stopMotion();
+      var start = position;
+      var distance = target - start;
+      if (reducedMotion.matches || Math.abs(distance) < 0.001) {
+        position = wrap(target);
+        paint();
+        return;
+      }
+      snapTarget = target;
+      var started = performance.now();
+      var duration = Math.min(390, 230 + Math.abs(distance) * 88);
+      function animate(now) {
+        var progress = Math.min(1, Math.max(0, (now - started) / duration));
+        position = start + distance * (1 - Math.pow(1 - progress, 3));
+        if (progress < 1) {
+          paint();
+          frame = requestAnimationFrame(animate);
+        } else {
+          position = wrap(target);
+          stopMotion();
+          paint();
+        }
+      }
+      frame = requestAnimationFrame(animate);
+    }
+
+    function updateGuide() {
+      if ($swipeGuide) $swipeGuide.classList.toggle('is-hidden', hasSwiped || slides.length <= 1);
+    }
+
+    function finishGesture(cancelled) {
+      if (!gesture) return;
+      var ended = gesture;
+      gesture = null;
+      if (!ended.dragging) return;
+      $productSwiper.classList.remove('is-dragging');
+      if ($productSwiper.hasPointerCapture(ended.id)) $productSwiper.releasePointerCapture(ended.id);
+      var target = Math.round(position);
+      if (!cancelled) {
+        var travel = position - ended.start;
+        var flick = performance.now() - ended.lastTime < 100 && Math.abs(ended.velocity) > 0.45;
+        if (Math.abs(travel) >= (flick ? 0.10 : 0.19)) {
+          target = Math.round(ended.start) + Math.sign(travel) * Math.max(1, Math.round(Math.abs(travel)));
+          hasSwiped = true;
+          updateGuide();
+        }
+      }
+      snapTo(target);
+    }
+
+    $productSwiper.addEventListener('pointerdown', function (event) {
+      if (gesture || !event.isPrimary || event.button !== 0) return;
+      suppressClick = false;
+      if (slides.length <= 1) return;
+      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, lastTime: performance.now(), velocity: 0, dragging: false };
+    });
+
+    $productSwiper.addEventListener('pointermove', function (event) {
+      if (!gesture || gesture.id !== event.pointerId) return;
+      var dx = event.clientX - gesture.x;
+      var dy = event.clientY - gesture.y;
+      if (!gesture.dragging) {
+        if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) { gesture = null; return; }
+        if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy)) return;
+        stopMotion();
+        gesture.dragging = true;
+        gesture.start = position;
+        suppressClick = true;
+        $productSwiper.setPointerCapture(event.pointerId);
+        $productSwiper.classList.add('is-dragging');
+      }
+      var now = performance.now();
+      gesture.velocity = (event.clientX - gesture.lastX) / Math.max(8, now - gesture.lastTime);
+      gesture.lastX = event.clientX;
+      gesture.lastTime = now;
+      position = gesture.start + dx / (width * 0.63);
+      if (!frame) frame = requestAnimationFrame(function () { frame = 0; paint(); });
+    });
+
+    window.addEventListener('pointerup', function (event) {
+      if (gesture && gesture.id === event.pointerId) finishGesture(false);
+    });
+    window.addEventListener('pointercancel', function (event) {
+      if (gesture && gesture.id === event.pointerId) finishGesture(true);
+    });
+    $productSwiper.addEventListener('lostpointercapture', function (event) {
+      if (event.target === $productSwiper && gesture && gesture.id === event.pointerId) finishGesture(true);
+    });
+    window.addEventListener('blur', function () { finishGesture(true); });
+
+    $productSwiper.addEventListener('click', function (event) {
+      if (!suppressClick || event.detail === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+
+    $productSwiper.addEventListener('keydown', function (event) {
+      if (slides.length <= 1 || gesture || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
+      event.preventDefault();
+      var direction = event.key === 'ArrowRight' ? 1 : -1;
+      hasSwiped = true;
+      updateGuide();
+      snapTo((snapTarget === null ? Math.round(position) : snapTarget) + direction);
+    });
+
+    function resize() {
+      var measured = $productSwiper.clientWidth || Math.min(window.innerWidth, 480);
+      if (measured === width) return;
+      finishGesture(true);
+      width = measured;
+      paint();
+    }
+
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe($productSwiper);
+    else window.addEventListener('resize', resize);
+    reducedMotion.addEventListener('change', function () {
+      if (snapTarget !== null) snapTo(snapTarget);
+      else paint();
+    });
+
+    return {
+      reset: function () {
+        finishGesture(true);
+        stopMotion();
+        position = 0;
+        current = null;
+        visible.clear();
+        slides = Array.from($swiperWrapper.children);
+        slides.forEach(function (slide) {
+          slide.setAttribute('inert', '');
+          slide.setAttribute('aria-hidden', 'true');
+        });
+        suppressClick = false;
+        width = $productSwiper.clientWidth || Math.min(window.innerWidth, 480);
+        updateGuide();
+        paint();
+      }
+    };
+  })();
 
   /* ══════════════════════════════════════════
      8. EVENT DELEGATION — SIZE PILLS & ADD TO CART
@@ -676,7 +847,7 @@
       }, 1200);
 
       // Fly-to-cart
-      var slide = btn.closest('.swiper-slide');
+      var slide = btn.closest('.product-slide');
       var imgEl = slide ? slide.querySelector('.card-image-wrap img') : null;
       if (imgEl) flyToCart(imgEl);
 
@@ -1020,7 +1191,6 @@
     $journeyStartBtn.addEventListener('click', function () {
       var target = document.getElementById('productSwiper');
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (swiperInstance) swiperInstance.update();
     });
   }
 
