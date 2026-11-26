@@ -573,30 +573,42 @@
 
   var productGallery = (function () {
     var slides = [];
-    var visible = new Set();
     var current = null;
-    var position = 0;
+    var angle = 0;
+    var angleStep = 0;
     var width = 0;
+    var radius = 0;
+    var perspective = 1000;
+    var radians = Math.PI / 180;
+    var direction = 1;
+    var glide = 0;
+    var alignment = null;
     var frame = 0;
-    var snapTarget = null;
+    var previousTime = 0;
     var gesture = null;
     var suppressClick = false;
     var hasSwiped = false;
+    var pauseOverride = null;
+    var resumeAt = 0;
+    var resumeTimer = 0;
+    var toggle = document.getElementById('galleryMotionToggle');
     var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var inView = typeof IntersectionObserver === 'undefined';
 
     function wrap(index) {
       return ((index % slides.length) + slides.length) % slides.length;
     }
 
-    function preloadImage(index) {
-      var image = slides[wrap(index)].querySelector('img[data-gallery-src]');
-      if (!image) return;
+    function preloadImage(index, lowPriority) {
+      var image = slides[wrap(index)].image;
+      if (!image || !image.dataset.gallerySrc) return;
+      if (lowPriority) image.fetchPriority = 'low';
       image.src = image.dataset.gallerySrc;
       image.removeAttribute('data-gallery-src');
     }
 
     function showCurrent(index) {
-      var next = slides[wrap(index)];
+      var next = slides[wrap(index)].panel;
       if (next === current) return;
       if (current) {
         if (current.contains(document.activeElement)) $productSwiper.focus({ preventScroll: true });
@@ -615,99 +627,145 @@
 
     function paint() {
       if (!slides.length) return;
-      var center = Math.round(position);
-      showCurrent(center);
-      var nearby = new Set();
-      // Slots enter and leave behind the sides of the ring. The same product
-      // node can wrap around without duplicating its buttons or selected size.
-      var visibleRange = slides.length <= 2 ? 1 : 1.5;
-      for (var slot = Math.ceil(position - visibleRange); slot <= Math.floor(position + visibleRange); slot++) {
-        var offset = position - slot;
-        var distance = Math.abs(offset);
-        if (distance >= visibleRange) continue;
-        var slide = slides[wrap(slot)];
-        if (nearby.has(slide)) continue;
-        nearby.add(slide);
-        var angle = offset * Math.PI / 4;
-        var depth = 1 - Math.cos(angle);
-        var x = reducedMotion.matches ? offset * width * 0.62 : Math.sin(angle) * width * 0.88;
-        var y = reducedMotion.matches ? 0 : depth * width * 0.09;
-        var z = reducedMotion.matches ? 0 : -depth * width;
-        var rotation = reducedMotion.matches ? 0 : offset * 45;
-        var fade = Math.min(1, (visibleRange - distance) / 0.28);
-        slide.style.transform = 'perspective(900px) translate3d(' + x + 'px,' + y + 'px,' + z + 'px) rotateY(' + rotation + 'deg)';
-        slide.style.opacity = (1 - distance * 0.23) * fade;
-        slide.style.zIndex = Math.round(100 - distance * 60);
-        if (!visible.has(slide)) slide.classList.add('is-nearby');
-      }
-      visible.forEach(function (slide) {
-        if (!nearby.has(slide)) slide.classList.remove('is-nearby');
-      });
-      visible = nearby;
-    }
+      showCurrent(slides.length === 1 ? 0 : Math.round(angle / angleStep));
+      $swiperWrapper.style.transform = 'translateZ(' + -radius + 'px) rotateY(' + angle + 'deg)';
 
-    function stopMotion() {
-      cancelAnimationFrame(frame);
-      frame = 0;
-      snapTarget = null;
-    }
-
-    function snapTo(target) {
-      stopMotion();
-      var start = position;
-      var distance = target - start;
-      if (reducedMotion.matches || Math.abs(distance) < 0.001) {
-        position = wrap(target);
-        paint();
-        return;
-      }
-      snapTarget = target;
-      var started = performance.now();
-      var duration = Math.min(390, 230 + Math.abs(distance) * 88);
-      function animate(now) {
-        var progress = Math.min(1, Math.max(0, (now - started) / duration));
-        position = start + distance * (1 - Math.pow(1 - progress, 3));
-        if (progress < 1) {
-          paint();
-          frame = requestAnimationFrame(animate);
+      // The track rotates as one object. All cards keep fixed slots on the
+      // cylinder, with the far side dimmed and its faces readable.
+      var facingLimit = radius / (perspective + radius);
+      for (var i = 0; i < slides.length; i++) {
+        var item = slides[i];
+        var panelAngle = angle - i * angleStep;
+        var phase = panelAngle * radians;
+        var cosine = Math.cos(phase);
+        if (slides.length <= 3) {
+          // Sparse rings still show the photos when the panels pass the sides.
+          item.panel.style.setProperty('--panel-face', Math.sin(phase) * 55 - panelAngle + 'deg');
         } else {
-          position = wrap(target);
-          stopMotion();
-          paint();
+          var faceAway = cosine < facingLimit;
+          if (faceAway !== item.faceAway) {
+            item.panel.classList.toggle('is-facing-away', faceAway);
+            item.faceAway = faceAway;
+          }
+        }
+        var opacity = Math.min(1, Math.round((0.49 + 0.51 * (1 + cosine) / 1.92) * 100) / 100);
+        if (opacity !== item.opacity) {
+          item.panel.style.opacity = opacity;
+          item.opacity = opacity;
+        }
+        if (item.image && item.image.dataset.gallerySrc) {
+          var distance = radius * (1 - cosine);
+          var x = Math.abs(radius * Math.sin(phase) * perspective / (perspective + distance));
+          if (x < width * 0.82) preloadImage(i, true);
         }
       }
-      frame = requestAnimationFrame(animate);
     }
 
-    function updateGuide() {
+    function autoEnabled() {
+      return pauseOverride === null ? !reducedMotion.matches : !pauseOverride;
+    }
+
+    function canAnimate() {
+      return slides.length > 1 && inView && !document.hidden && !$drawerOverlay.classList.contains('open');
+    }
+
+    function canAutoplay(now) {
+      var focus = document.activeElement;
+      return autoEnabled() && now >= resumeAt &&
+        (!focus || focus === toggle || !$productSwiper.contains(focus) || !focus.matches(':focus-visible'));
+    }
+
+    function queueFrame() {
+      if (!frame) frame = requestAnimationFrame(tick);
+    }
+
+    function tick(now) {
+      frame = 0;
+      var elapsed = previousTime ? Math.min(32, Math.max(0, now - previousTime)) : 0;
+      if (!gesture && canAnimate()) {
+        if (alignment) {
+          var progress = Math.min(1, Math.max(0, (now - alignment.time) / 240));
+          angle = alignment.from + (alignment.to - alignment.from) * (1 - Math.pow(1 - progress, 3));
+          if (progress === 1) alignment = null;
+        } else {
+          var idleSpeed = canAutoplay(now) ? direction * 18 / (radius * radians) : 0;
+          angle += (glide + idleSpeed) * elapsed / 1000;
+          glide *= Math.exp(-elapsed / 160);
+          if (Math.abs(glide) < 0.45) glide = 0;
+        }
+        angle %= 360;
+      }
+      paint();
+
+      if (!gesture && canAnimate() && (alignment || glide || canAutoplay(now))) {
+        previousTime = now;
+        queueFrame();
+      } else {
+        previousTime = 0;
+      }
+    }
+
+    function holdFor(milliseconds) {
+      resumeAt = performance.now() + milliseconds;
+      clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(queueFrame, milliseconds + 20);
+    }
+
+    function centerCard(target) {
+      glide = 0;
+      if (reducedMotion.matches || !canAnimate()) {
+        angle = target % 360;
+        alignment = null;
+        paint();
+      } else {
+        alignment = { from: angle, to: target, time: performance.now() };
+        queueFrame();
+      }
+    }
+
+    function updateControls() {
+      toggle.hidden = slides.length <= 1;
+      toggle.textContent = autoEnabled() ? 'إيقاف الدوران' : 'تشغيل الدوران';
       if ($swipeGuide) $swipeGuide.classList.toggle('is-hidden', hasSwiped || slides.length <= 1);
+    }
+
+    function degreesPerPixel() {
+      // Keep small categories responsive without changing the size of their ring.
+      return Math.max(1 / (radius * radians), angleStep / (width * 0.72));
     }
 
     function finishGesture(cancelled) {
       if (!gesture) return;
       var ended = gesture;
       gesture = null;
-      if (!ended.dragging) return;
-      $productSwiper.classList.remove('is-dragging');
-      if ($productSwiper.hasPointerCapture(ended.id)) $productSwiper.releasePointerCapture(ended.id);
-      var target = Math.round(position);
-      if (!cancelled) {
-        var travel = position - ended.start;
-        var flick = performance.now() - ended.lastTime < 100 && Math.abs(ended.velocity) > 0.45;
-        if (Math.abs(travel) >= (flick ? 0.10 : 0.19)) {
-          target = Math.round(ended.start) + Math.sign(travel) * Math.max(1, Math.round(Math.abs(travel)));
-          hasSwiped = true;
-          updateGuide();
+      if (ended.dragging) {
+        $productSwiper.classList.remove('is-dragging');
+        if ($productSwiper.hasPointerCapture(ended.id)) $productSwiper.releasePointerCapture(ended.id);
+        if (!cancelled && Math.abs(angle - ended.start) > 0.5) direction = Math.sign(angle - ended.start);
+        if (reducedMotion.matches) {
+          centerCard(Math.round(angle / angleStep) * angleStep);
+        } else if (!cancelled && performance.now() - ended.lastTime < 100) {
+          glide = ended.speed * degreesPerPixel() * 1000;
         }
+        hasSwiped = true;
+        updateControls();
+      } else if (!cancelled) {
+        holdFor(1200);
       }
-      snapTo(target);
+      queueFrame();
     }
 
     $productSwiper.addEventListener('pointerdown', function (event) {
       if (gesture || !event.isPrimary || event.button !== 0) return;
       suppressClick = false;
-      if (slides.length <= 1) return;
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, lastTime: performance.now(), velocity: 0, dragging: false };
+      if (slides.length <= 1 || toggle.contains(event.target)) return;
+      alignment = null;
+      glide = 0;
+      previousTime = 0;
+      gesture = {
+        id: event.pointerId, x: event.clientX, y: event.clientY, start: angle,
+        lastX: event.clientX, lastTime: performance.now(), speed: 0, dragging: false
+      };
     });
 
     $productSwiper.addEventListener('pointermove', function (event) {
@@ -715,21 +773,20 @@
       var dx = event.clientX - gesture.x;
       var dy = event.clientY - gesture.y;
       if (!gesture.dragging) {
-        if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) { gesture = null; return; }
+        if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) { finishGesture(true); return; }
         if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy)) return;
-        stopMotion();
         gesture.dragging = true;
-        gesture.start = position;
         suppressClick = true;
         $productSwiper.setPointerCapture(event.pointerId);
         $productSwiper.classList.add('is-dragging');
       }
       var now = performance.now();
-      gesture.velocity = (event.clientX - gesture.lastX) / Math.max(8, now - gesture.lastTime);
+      var speed = (event.clientX - gesture.lastX) / Math.max(8, now - gesture.lastTime);
+      gesture.speed = Math.max(-1.4, Math.min(1.4, 0.4 * gesture.speed + 0.6 * speed));
       gesture.lastX = event.clientX;
       gesture.lastTime = now;
-      position = gesture.start + dx / (width * 0.63);
-      if (!frame) frame = requestAnimationFrame(function () { frame = 0; paint(); });
+      angle = gesture.start + dx * degreesPerPixel();
+      queueFrame();
     });
 
     window.addEventListener('pointerup', function (event) {
@@ -749,50 +806,104 @@
       event.stopPropagation();
     }, true);
 
+    $swiperWrapper.addEventListener('click', function (event) {
+      if (slides.length <= 1 || !current || !current.contains(event.target)) return;
+      holdFor(5500);
+      centerCard(Math.round(angle / angleStep) * angleStep);
+    });
+
     $productSwiper.addEventListener('keydown', function (event) {
       if (slides.length <= 1 || gesture || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
       event.preventDefault();
-      var direction = event.key === 'ArrowRight' ? 1 : -1;
+      direction = event.key === 'ArrowRight' ? 1 : -1;
       hasSwiped = true;
-      updateGuide();
-      snapTo((snapTarget === null ? Math.round(position) : snapTarget) + direction);
+      updateControls();
+      holdFor(3500);
+      var target = alignment ? alignment.to : Math.round(angle / angleStep) * angleStep;
+      centerCard(target + direction * angleStep);
     });
+
+    toggle.addEventListener('click', function () {
+      pauseOverride = autoEnabled();
+      alignment = null;
+      glide = 0;
+      resumeAt = 0;
+      queueFrame();
+      updateControls();
+    });
+
+    function layout() {
+      angleStep = 360 / Math.max(1, slides.length);
+      radius = 0;
+      if (slides.length > 1) {
+        var cardWidth = slides[0].panel.offsetWidth || Math.min(width <= 360 ? 260 : 300, width * 0.85);
+        var halfAngle = Math.min(Math.PI / 4, angleStep * radians / 2);
+        // Neighboring panels must not intersect, even in larger menus.
+        var clearance = (cardWidth + 18) / (2 * Math.tan(halfAngle));
+        radius = Math.max(clearance, width * 0.55 / Math.sin(Math.min(Math.PI / 2, angleStep * radians)));
+      }
+      $swiperWrapper.style.setProperty('--ring-radius', radius + 'px');
+      slides.forEach(function (item, index) {
+        item.panel.style.setProperty('--panel-angle', -index * angleStep + 'deg');
+      });
+      paint();
+    }
 
     function resize() {
       var measured = $productSwiper.clientWidth || Math.min(window.innerWidth, 480);
       if (measured === width) return;
       finishGesture(true);
       width = measured;
-      paint();
+      layout();
     }
 
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe($productSwiper);
     else window.addEventListener('resize', resize);
-    reducedMotion.addEventListener('change', function () {
-      if (snapTarget !== null) snapTo(snapTarget);
-      else paint();
+    if (typeof IntersectionObserver !== 'undefined') {
+      new IntersectionObserver(function (entries) {
+        var entry = entries[0];
+        inView = entry.isIntersecting && entry.intersectionRatio >= 0.2;
+        if (!inView) glide = 0;
+        queueFrame();
+      }, { threshold: 0.2 }).observe($productSwiper);
+    }
+    new MutationObserver(queueFrame).observe($drawerOverlay, { attributes: true, attributeFilter: ['class'] });
+    document.addEventListener('visibilitychange', function () {
+      previousTime = 0;
+      if (document.hidden) { glide = 0; finishGesture(true); }
+      queueFrame();
     });
+    $productSwiper.addEventListener('focusin', queueFrame);
+    $productSwiper.addEventListener('focusout', queueFrame);
+    function onMotionPreferenceChange() {
+      glide = 0;
+      if (alignment && reducedMotion.matches) centerCard(alignment.to);
+      updateControls();
+      queueFrame();
+    }
+    if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', onMotionPreferenceChange);
+    else reducedMotion.addListener(onMotionPreferenceChange);
 
     return {
       reset: function () {
         finishGesture(true);
-        stopMotion();
-        position = 0;
-        current = null;
-        visible.clear();
-        slides = Array.from($swiperWrapper.children);
-        slides.forEach(function (slide) {
-          slide.setAttribute('inert', '');
-          slide.setAttribute('aria-hidden', 'true');
-        });
+        cancelAnimationFrame(frame);
+        clearTimeout(resumeTimer);
+        frame = previousTime = resumeAt = angle = glide = 0;
+        alignment = current = null;
         suppressClick = false;
         width = $productSwiper.clientWidth || Math.min(window.innerWidth, 480);
-        updateGuide();
-        paint();
+        slides = Array.from($swiperWrapper.children, function (panel) {
+          panel.setAttribute('inert', '');
+          panel.setAttribute('aria-hidden', 'true');
+          return { panel: panel, image: panel.querySelector('img'), opacity: 1, faceAway: false };
+        });
+        updateControls();
+        layout();
+        queueFrame();
       }
     };
   })();
-
   /* ══════════════════════════════════════════
      8. EVENT DELEGATION — SIZE PILLS & ADD TO CART
      ══════════════════════════════════════════ */

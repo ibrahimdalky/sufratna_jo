@@ -599,11 +599,13 @@ button:focus-visible {
 
 /* ---------- PRODUCT GALLERY ---------- */
 .product-gallery {
+  position: relative;
   width: 100%;
   padding-top: 64px;
   padding-bottom: 60px;
   overflow: hidden;
   isolation: isolate;
+  perspective: 1000px;
   touch-action: pan-y pinch-zoom;
   user-select: none;
   -webkit-user-select: none;
@@ -618,22 +620,35 @@ button:focus-visible {
   display: grid;
   justify-items: center;
   align-items: start;
+  transform-style: preserve-3d;
+}
+
+.gallery-motion-toggle {
+  position: absolute;
+  top: 5px;
+  inset-inline-end: 14px;
+  z-index: 2;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+  font-weight: 600;
 }
 
 .product-slide {
   grid-area: 1 / 1;
   position: relative;
   width: min(300px, 85vw);
-  visibility: hidden;
+  transform: rotateY(var(--panel-angle, 0deg)) translateZ(var(--ring-radius, 0px)) rotateY(var(--panel-face, 0deg));
+  backface-visibility: hidden;
   pointer-events: none;
 }
 
-.product-slide.is-nearby { visibility: visible; }
+.product-slide.is-facing-away { --panel-face: 180deg; }
 .product-slide.is-current { pointer-events: auto; }
-
-.product-gallery.is-dragging .product-slide.is-nearby {
-  will-change: transform, opacity;
-}
 
 .product-gallery.is-dragging .product-slide {
   pointer-events: none;
