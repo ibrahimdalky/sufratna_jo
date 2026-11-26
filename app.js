@@ -83,6 +83,8 @@
   var categories = [];
   var activeCategory = 'الكل';
   var cart = [];
+  var lastCartAddition = null;
+  var cartNoticeTimer = 0;
   var CART_STORAGE_KEY = 'safratna_cart_v1';
 
   /* ──────────── DOM REFERENCES ──────────── */
@@ -93,19 +95,22 @@
   var $retryBtn       = document.getElementById('retryBtn');
   var $productSwiper  = document.getElementById('productSwiper');
   var $swiperWrapper  = document.getElementById('swiperWrapper');
+  var $productDetails = document.getElementById('productDetails');
   var $categoryScroll = document.getElementById('categoryScroll');
   var $cartBadge      = document.getElementById('cartBadge');
   var $cartBarText    = document.getElementById('cartBarText');
+  var $cartBarNotice  = document.getElementById('cartBarNotice');
+  var $cartLastItem   = document.getElementById('cartLastItem');
   var $cartBarTotal   = document.getElementById('cartBarTotal');
   var $cartBar        = document.getElementById('cartBar');
   var $drawerOverlay  = document.getElementById('drawerOverlay');
   var $drawerContent  = document.getElementById('drawerContent');
-  var $toastContainer = document.getElementById('toastContainer');
   var $brandLogo      = document.getElementById('brandLogo');
   var $logoPlaceholder = document.getElementById('logoPlaceholder');
   var $journeyStartBtn = document.getElementById('journeyStartBtn');
   var $refreshBtn      = document.getElementById('refreshBtn');
   var $syncStatus      = document.getElementById('syncStatus');
+  var $menuViewToolbar = document.getElementById('menuViewToolbar');
   var $swipeGuide      = document.getElementById('swipeGuide');
 
   /* ══════════════════════════════════════════
@@ -508,7 +513,47 @@
      6. RENDER PRODUCT SLIDES
      ══════════════════════════════════════════ */
 
+  var detailsProduct = null;
+  var detailsTrigger = null;
+
+  function sizePillsMarkup(product, index) {
+    if (!product.sizes.length) return '';
+    var html = '<div class="size-selector" role="group" aria-label="حجم الوجبة">';
+    for (var i = 0; i < product.sizes.length; i++) {
+      var size = product.sizes[i];
+      var selected = size === product.selectedSize;
+      html += '<button type="button" class="size-pill' + (selected ? ' active' : '') + '" data-idx="' + index + '" data-si="' + i + '" aria-pressed="' + selected + '">' + escapeHTML(size.label) + '</button>';
+    }
+    return html + '</div>';
+  }
+
+  function keepOpenDetails() {
+    if (!$productDetails.open || !detailsProduct) return -1;
+    var retainedIndex = filteredProducts.indexOf(detailsProduct);
+    if (retainedIndex < 0) {
+      retainedIndex = filteredProducts.findIndex(function (product) {
+        return product.id === detailsProduct.id && (product.id || product.name === detailsProduct.name);
+      });
+    }
+    if (retainedIndex < 0) {
+      $productDetails.close();
+      return -1;
+    }
+    var product = filteredProducts[retainedIndex];
+    if (product !== detailsProduct && detailsProduct.selectedSize) {
+      var selectedLabel = detailsProduct.selectedSize.label;
+      var retainedSize = product.sizes.find(function (size) { return size.label === selectedLabel; });
+      if (retainedSize) {
+        product.selectedSize = retainedSize;
+        product.selectedPrice = retainedSize.price;
+      }
+    }
+    detailsProduct = product;
+    return retainedIndex;
+  }
+
   function renderProducts() {
+    var detailsIndex = keepOpenDetails();
     if (filteredProducts.length === 0) {
       $swiperWrapper.innerHTML = '<div class="product-slide"><div class="product-card"><div class="card-body" style="text-align:center;padding:40px 20px;"><p style="color:var(--text-secondary);">لا توجد منتجات في هذا القسم</p></div></div></div>';
       productGallery.reset();
@@ -519,17 +564,6 @@
     var bestsellerShown = false;
     for (var idx = 0; idx < filteredProducts.length; idx++) {
       var p = filteredProducts[idx];
-
-      // Size pills
-      var sizesHTML = '';
-      if (p.sizes.length > 0) {
-        sizesHTML = '<div class="size-selector">';
-        for (var si = 0; si < p.sizes.length; si++) {
-          var act = p.sizes[si] === p.selectedSize ? ' active' : '';
-          sizesHTML += '<button class="size-pill' + act + '" data-idx="' + idx + '" data-si="' + si + '">' + escapeHTML(p.sizes[si].label) + '</button>';
-        }
-        sizesHTML += '</div>';
-      }
 
       var imgSrc = p.image_url || PLACEHOLDER_SVG;
       // Presentation only: show one bestseller badge, exclusively for sheet ID 1.
@@ -545,14 +579,15 @@
         '<div class="product-slide" data-idx="' + idx + '">' +
           '<div class="product-card' + (showBestseller ? ' is-bestseller' : '') + '">' +
             badgeHTML +
-            '<div class="card-image-wrap">' +
-              '<img ' + imageSource + '="' + escapeAttr(imgSrc) + '" alt="' + escapeAttr(p.name) + '" draggable="false" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
-            '</div>' +
+            '<button type="button" class="card-image-wrap card-image-trigger" data-idx="' + idx + '" aria-label="تفاصيل ' + escapeAttr(p.name) + '" aria-haspopup="dialog" aria-controls="productDetails">' +
+              '<img ' + imageSource + '="' + escapeAttr(imgSrc) + '" alt="" draggable="false" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+              '<span class="card-details-cue" aria-hidden="true">التفاصيل ↑</span>' +
+            '</button>' +
             '<div class="card-body">' +
               '<span class="card-category">' + escapeHTML(p.category) + '</span>' +
               '<h2 class="card-name">' + escapeHTML(p.name) + '</h2>' +
               '<p class="card-desc">' + escapeHTML(p.description) + '</p>' +
-              sizesHTML +
+              sizePillsMarkup(p, idx) +
               '<div class="card-price" data-idx="' + idx + '">' +
                 '<span class="price-value">' + p.selectedPrice.toFixed(2) + '</span> ' +
                 '<span class="currency">د.أ</span>' +
@@ -564,7 +599,12 @@
     }
 
     $swiperWrapper.innerHTML = html;
-    productGallery.reset();
+    productGallery.reset(detailsIndex);
+    if (detailsIndex >= 0) {
+      detailsTrigger = productCardAt(detailsIndex).querySelector('.card-image-trigger');
+      renderProductDetails(detailsProduct, detailsIndex);
+      $productDetails.querySelector('.product-details-close').focus({ preventScroll: true });
+    }
   }
 
   /* ══════════════════════════════════════════
@@ -573,6 +613,7 @@
 
   var productGallery = (function () {
     var slides = [];
+    var gridMode = false;
     var current = null;
     var angle = 0;
     var angleStep = 0;
@@ -592,6 +633,8 @@
     var resumeAt = 0;
     var resumeTimer = 0;
     var toggle = document.getElementById('galleryMotionToggle');
+    var ringView = document.getElementById('menuViewRing');
+    var gridView = document.getElementById('menuViewGrid');
     var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     var inView = typeof IntersectionObserver === 'undefined';
 
@@ -599,9 +642,12 @@
       return ((index % slides.length) + slides.length) % slides.length;
     }
 
-    function preloadImage(index, lowPriority) {
+    function preloadImage(index, lowPriority, lazy) {
       var image = slides[wrap(index)].image;
-      if (!image || !image.dataset.gallerySrc) return;
+      if (!image) return;
+      if (!lowPriority && image.loading === 'lazy') image.loading = 'eager';
+      if (!image.dataset.gallerySrc) return;
+      if (lazy) image.loading = 'lazy';
       if (lowPriority) image.fetchPriority = 'low';
       image.src = image.dataset.gallerySrc;
       image.removeAttribute('data-gallery-src');
@@ -626,7 +672,7 @@
     }
 
     function paint() {
-      if (!slides.length) return;
+      if (gridMode || !slides.length) return;
       showCurrent(slides.length === 1 ? 0 : Math.round(angle / angleStep));
       $swiperWrapper.style.transform = 'translateZ(' + -radius + 'px) rotateY(' + angle + 'deg)';
 
@@ -666,7 +712,7 @@
     }
 
     function canAnimate() {
-      return slides.length > 1 && inView && !document.hidden && !$drawerOverlay.classList.contains('open');
+      return !gridMode && slides.length > 1 && inView && !document.hidden && !$productDetails.open && !$drawerOverlay.classList.contains('open');
     }
 
     function canAutoplay(now) {
@@ -676,7 +722,7 @@
     }
 
     function queueFrame() {
-      if (!frame) frame = requestAnimationFrame(tick);
+      if (!gridMode && !frame) frame = requestAnimationFrame(tick);
     }
 
     function tick(now) {
@@ -724,10 +770,55 @@
     }
 
     function updateControls() {
-      toggle.hidden = slides.length <= 1;
+      $menuViewToolbar.hidden = filteredProducts.length === 0;
+      ringView.setAttribute('aria-pressed', String(!gridMode));
+      gridView.setAttribute('aria-pressed', String(gridMode));
+      toggle.hidden = gridMode || slides.length <= 1;
       toggle.textContent = autoEnabled() ? 'إيقاف الدوران' : 'تشغيل الدوران';
-      if ($swipeGuide) $swipeGuide.classList.toggle('is-hidden', hasSwiped || slides.length <= 1);
+      $swipeGuide.classList.toggle('is-hidden', gridMode || hasSwiped || slides.length <= 1);
     }
+
+    function prepareGrid() {
+      current = null;
+      $swiperWrapper.style.removeProperty('transform');
+      slides.forEach(function (item, index) {
+        item.panel.classList.remove('is-current');
+        item.panel.removeAttribute('inert');
+        item.panel.removeAttribute('aria-hidden');
+        item.panel.style.removeProperty('opacity');
+        item.opacity = null;
+        preloadImage(index, index > 1, index > 1);
+      });
+    }
+
+    function prepareRing() {
+      current = null;
+      slides.forEach(function (item) {
+        item.panel.setAttribute('inert', '');
+        item.panel.setAttribute('aria-hidden', 'true');
+      });
+      layout();
+      queueFrame();
+    }
+
+    function selectView(showGrid) {
+      if (gridMode === showGrid) return;
+      finishGesture(true);
+      cancelAnimationFrame(frame);
+      clearTimeout(resumeTimer);
+      frame = previousTime = glide = resumeAt = 0;
+      alignment = null;
+      suppressClick = false;
+      gridMode = showGrid;
+      $productSwiper.classList.toggle('is-grid', gridMode);
+      $productSwiper.setAttribute('aria-label', gridMode ? 'عرض أصناف سفرتنا' : 'معرض أصناف سفرتنا');
+      if (gridMode) prepareGrid();
+      else prepareRing();
+      updateControls();
+    }
+
+    ringView.addEventListener('click', function () { selectView(false); });
+    gridView.addEventListener('click', function () { selectView(true); });
 
     function degreesPerPixel() {
       // Keep small categories responsive without changing the size of their ring.
@@ -756,7 +847,7 @@
     }
 
     $productSwiper.addEventListener('pointerdown', function (event) {
-      if (gesture || !event.isPrimary || event.button !== 0) return;
+      if (gridMode || gesture || !event.isPrimary || event.button !== 0) return;
       suppressClick = false;
       if (slides.length <= 1 || toggle.contains(event.target)) return;
       alignment = null;
@@ -807,13 +898,13 @@
     }, true);
 
     $swiperWrapper.addEventListener('click', function (event) {
-      if (slides.length <= 1 || !current || !current.contains(event.target)) return;
+      if (slides.length <= 1 || !current || !current.contains(event.target) || event.target.closest('.card-image-trigger')) return;
       holdFor(5500);
       centerCard(Math.round(angle / angleStep) * angleStep);
     });
 
     $productSwiper.addEventListener('keydown', function (event) {
-      if (slides.length <= 1 || gesture || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
+      if (gridMode || slides.length <= 1 || gesture || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
       event.preventDefault();
       direction = event.key === 'ArrowRight' ? 1 : -1;
       hasSwiped = true;
@@ -854,7 +945,7 @@
       if (measured === width) return;
       finishGesture(true);
       width = measured;
-      layout();
+      if (!gridMode) layout();
     }
 
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe($productSwiper);
@@ -885,7 +976,19 @@
     else reducedMotion.addListener(onMotionPreferenceChange);
 
     return {
-      reset: function () {
+      isGrid: function () { return gridMode; },
+      lockToProduct: function (index) {
+        alignment = null;
+        glide = previousTime = 0;
+        angle = index * angleStep;
+        paint();
+      },
+      releaseProduct: function () {
+        if (gridMode) return;
+        holdFor(5000);
+        queueFrame();
+      },
+      reset: function (index) {
         finishGesture(true);
         cancelAnimationFrame(frame);
         clearTimeout(resumeTimer);
@@ -894,13 +997,13 @@
         suppressClick = false;
         width = $productSwiper.clientWidth || Math.min(window.innerWidth, 480);
         slides = Array.from($swiperWrapper.children, function (panel) {
-          panel.setAttribute('inert', '');
-          panel.setAttribute('aria-hidden', 'true');
           return { panel: panel, image: panel.querySelector('img'), opacity: 1, faceAway: false };
         });
+        angleStep = 360 / Math.max(1, slides.length);
+        if (index >= 0 && slides.length) angle = index * angleStep;
         updateControls();
-        layout();
-        queueFrame();
+        if (gridMode) prepareGrid();
+        else prepareRing();
       }
     };
   })();
@@ -908,63 +1011,168 @@
      8. EVENT DELEGATION — SIZE PILLS & ADD TO CART
      ══════════════════════════════════════════ */
 
-  $swiperWrapper.addEventListener('click', function (e) {
+  function productCardAt(index) {
+    return $swiperWrapper.querySelector('.product-slide[data-idx="' + index + '"] .product-card');
+  }
 
-    /* ── Size pill click ── */
-    var pill = e.target.closest('.size-pill');
-    if (pill) {
-      var pIdx = parseInt(pill.getAttribute('data-idx'), 10);
-      var sIdx = parseInt(pill.getAttribute('data-si'), 10);
-      var prod = filteredProducts[pIdx];
-      if (!prod || !prod.sizes[sIdx]) return;
+  function renderProductDetails(product, index) {
+    var card = productCardAt(index);
+    var cardImage = card ? card.querySelector('img') : null;
+    var imageSource = (cardImage && cardImage.currentSrc) || product.image_url || PLACEHOLDER_SVG;
+    $productDetails.innerHTML =
+      '<div class="product-details-panel">' +
+        '<header class="product-details-header">' +
+          '<div>' +
+            (product.category ? '<p class="product-details-category">' + escapeHTML(product.category) + '</p>' : '') +
+            '<h2 id="productDetailsTitle">' + escapeHTML(product.name) + '</h2>' +
+          '</div>' +
+          '<button type="button" class="product-details-close" aria-label="إغلاق تفاصيل الصنف" autofocus>×</button>' +
+        '</header>' +
+        '<div class="product-details-content">' +
+          '<div class="product-details-summary">' +
+            '<img class="product-details-photo" src="' + escapeAttr(imageSource) + '" alt="" decoding="async" />' +
+            (product.description ? '<p>' + escapeHTML(product.description) + '</p>' : '') +
+          '</div>' +
+          (product.sizes.length ? '<p class="product-details-size-label">اختر الحجم</p>' + sizePillsMarkup(product, index) : '') +
+        '</div>' +
+        '<footer class="product-details-footer">' +
+          '<div class="product-details-total">' +
+            '<span>السعر</span>' +
+            '<div class="card-price" aria-live="polite"><span class="price-value">' + product.selectedPrice.toFixed(2) +
+              '</span> <span class="currency">د.أ</span></div>' +
+          '</div>' +
+          '<button type="button" class="add-to-cart-btn" data-idx="' + index + '">🛒 أضف إلى السلة</button>' +
+          '<span class="product-details-feedback" role="status"></span>' +
+        '</footer>' +
+      '</div>';
 
-      prod.selectedSize = prod.sizes[sIdx];
-      prod.selectedPrice = prod.sizes[sIdx].price;
+    $productDetails.querySelector('.product-details-photo').addEventListener('error', function () {
+      this.src = PLACEHOLDER_SVG;
+    }, { once: true });
+  }
 
-      // Update pill active state
-      var card = pill.closest('.product-card');
-      var allPills = card.querySelectorAll('.size-pill');
-      for (var i = 0; i < allPills.length; i++) allPills[i].classList.remove('active');
-      pill.classList.add('active');
+  function openProductDetails(trigger) {
+    if ($productDetails.open || typeof $productDetails.showModal !== 'function') return;
+    var index = Number(trigger.dataset.idx);
+    var product = filteredProducts[index];
+    if (!product || (!productGallery.isGrid() && !trigger.closest('.product-slide.is-current'))) return;
 
-      // Animate price change
-      var priceEl = card.querySelector('.card-price .price-value');
-      if (priceEl) {
-        priceEl.style.opacity = '0.3';
-        setTimeout(function () {
-          priceEl.textContent = prod.selectedPrice.toFixed(2);
-          priceEl.style.opacity = '1';
-        }, 120);
-      }
-      return;
-    }
+    detailsProduct = product;
+    detailsTrigger = trigger;
+    renderProductDetails(product, index);
+    $productDetails.showModal();
+    document.documentElement.classList.add('has-product-details');
+    productGallery.lockToProduct(index);
+  }
 
-    /* ── Add to cart click ── */
-    var btn = e.target.closest('.add-to-cart-btn');
-    if (btn) {
-      var idx = parseInt(btn.getAttribute('data-idx'), 10);
-      var prod = filteredProducts[idx];
-      if (!prod) return;
-
-      addToCart(prod);
-      if (navigator.vibrate) navigator.vibrate(8);
-
-      // Success flash
-      btn.classList.add('success');
-      btn.textContent = '✓ تمت الإضافة';
-      setTimeout(function () {
-        btn.classList.remove('success');
-        btn.textContent = '🛒 أضف إلى السلة';
-      }, 1200);
-
-      // Fly-to-cart
-      var slide = btn.closest('.product-slide');
-      var imgEl = slide ? slide.querySelector('.card-image-wrap img') : null;
-      if (imgEl) flyToCart(imgEl);
-
-      return;
-    }
+  var pressedDetailsBackdrop = false;
+  $productDetails.addEventListener('pointerdown', function (event) {
+    pressedDetailsBackdrop = event.target === $productDetails;
   });
+  $productDetails.addEventListener('close', function () {
+    if ($productDetails.open) return;
+    document.documentElement.classList.remove('has-product-details');
+    if (detailsTrigger && detailsTrigger.isConnected && !detailsTrigger.closest('[inert]')) {
+      detailsTrigger.focus({ preventScroll: true });
+    }
+    detailsTrigger = detailsProduct = null;
+    pressedDetailsBackdrop = false;
+    productGallery.releaseProduct();
+    if (lastCartAddition && lastCartAddition.deferred) showCartAdditionNotice();
+  });
+
+  var feedbackMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var feedbackAnimations = new WeakMap();
+
+  function animateFeedback(element, frames, duration) {
+    if (!element.animate || feedbackMotionPreference.matches) return;
+    var running = feedbackAnimations.get(element);
+    if (running) running.cancel();
+    feedbackAnimations.set(element, element.animate(frames, {
+      duration: duration,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
+    }));
+  }
+
+  function syncProductChoices(container, product, shouldAnimate) {
+    if (!container) return;
+    container.querySelectorAll('.size-pill').forEach(function (pill) {
+      var selected = product.sizes[Number(pill.dataset.si)] === product.selectedSize;
+      pill.classList.toggle('active', selected);
+      pill.setAttribute('aria-pressed', String(selected));
+    });
+    var value = container.querySelector('.price-value');
+    var formattedPrice = product.selectedPrice.toFixed(2);
+    if (!value || value.textContent === formattedPrice) return;
+    value.textContent = formattedPrice;
+    if (shouldAnimate) {
+      animateFeedback(value, [
+        { opacity: 0.55, transform: 'translateY(4px)' },
+        { opacity: 1, transform: 'translateY(0)' }
+      ], 205);
+    }
+  }
+
+  function handleProductAction(event) {
+    var target = event.target;
+    var inDetails = event.currentTarget === $productDetails;
+    if (inDetails && (target.closest('.product-details-close') ||
+        (target === $productDetails && pressedDetailsBackdrop))) {
+      $productDetails.close();
+      return;
+    }
+
+    var image = target.closest('.card-image-trigger');
+    if (!image && !inDetails && productGallery.isGrid()) {
+      var gridCard = target.closest('.product-card');
+      if (gridCard) image = gridCard.querySelector('.card-image-trigger');
+    }
+    if (image) {
+      openProductDetails(image);
+      return;
+    }
+
+    var button = target.closest('.size-pill, .add-to-cart-btn');
+    if (!button) return;
+    var index = Number(button.dataset.idx);
+    var product = filteredProducts[index];
+    if (!product || (inDetails && product !== detailsProduct)) return;
+
+    var card = productCardAt(index);
+    if (button.classList.contains('size-pill')) {
+      var size = product.sizes[Number(button.dataset.si)];
+      if (!size) return;
+      animateFeedback(button, [
+        { transform: 'scale(0.94)' },
+        { transform: 'scale(1)' }
+      ], 170);
+      product.selectedSize = size;
+      product.selectedPrice = size.price;
+      syncProductChoices(card, product, !inDetails);
+      if (inDetails) syncProductChoices($productDetails, product, true);
+      return;
+    }
+
+    if (button.classList.contains('success')) return;
+    addToCart(product);
+    if (navigator.vibrate) navigator.vibrate(8);
+
+    button.classList.add('success');
+    button.textContent = '✓ تمت الإضافة';
+    var feedback = inDetails ? $productDetails.querySelector('.product-details-feedback') : null;
+    if (feedback) feedback.textContent = 'انضاف للسلة: ' + product.name;
+    setTimeout(function () {
+      button.classList.remove('success');
+      button.textContent = '🛒 أضف إلى السلة';
+      if (feedback) feedback.textContent = '';
+    }, 1200);
+
+    var cardImage = !inDetails && card ? card.querySelector('.card-image-wrap img') : null;
+    if (cardImage) flyToCart(cardImage);
+  }
+
+  $swiperWrapper.addEventListener('click', handleProductAction);
+  $productDetails.addEventListener('click', handleProductAction);
 
   /* ══════════════════════════════════════════
      9. CART SYSTEM
@@ -998,7 +1206,7 @@
 
     saveCart();
     updateCartUI();
-    showToast('✓ تمت الإضافة إلى السلة');
+    rememberCartAddition(product, sizeLabel);
   }
 
   function removeFromCart(productId, size) {
@@ -1045,6 +1253,10 @@
   function updateCartUI() {
     var count = getCartCount();
     var total = getCartTotal();
+
+    if (lastCartAddition && !cart.some(function (item) {
+      return item.productId === lastCartAddition.id && item.size === lastCartAddition.size;
+    })) clearCartAdditionNotice();
 
     if (count > 0) {
       $cartBar.classList.add('has-items');
@@ -1098,21 +1310,39 @@
   }
 
   /* ══════════════════════════════════════════
-     11. TOAST NOTIFICATIONS
+     11. CART ADDITION FEEDBACK
      ══════════════════════════════════════════ */
 
-  function showToast(message) {
-    var t = document.createElement('div');
-    t.className = 'toast';
-    t.textContent = message;
-    $toastContainer.appendChild(t);
+  function clearCartAdditionNotice() {
+    clearTimeout(cartNoticeTimer);
+    cartNoticeTimer = 0;
+    lastCartAddition = null;
+    $cartBar.classList.remove('has-addition');
+    $cartBarNotice.hidden = true;
+    $cartLastItem.textContent = '';
+  }
 
-    setTimeout(function () {
-      t.classList.add('fade-out');
-      setTimeout(function () {
-        if (t.parentNode) t.parentNode.removeChild(t);
-      }, 350);
-    }, 2500);
+  function rememberCartAddition(product, sizeLabel) {
+    clearCartAdditionNotice();
+    lastCartAddition = {
+      id: product.id,
+      size: sizeLabel,
+      name: product.name,
+      deferred: $productDetails.open
+    };
+    if (!lastCartAddition.deferred) showCartAdditionNotice();
+  }
+
+  function showCartAdditionNotice() {
+    lastCartAddition.deferred = false;
+    $cartBarNotice.hidden = false;
+    $cartLastItem.textContent = lastCartAddition.name;
+    $cartBar.classList.add('has-addition');
+    animateFeedback($cartBarNotice, [
+      { opacity: 0.6, transform: 'translateY(4px)' },
+      { opacity: 1, transform: 'translateY(0)' }
+    ], 180);
+    cartNoticeTimer = setTimeout(clearCartAdditionNotice, 2800);
   }
 
   /* ══════════════════════════════════════════
@@ -1300,7 +1530,7 @@
 
   if ($journeyStartBtn) {
     $journeyStartBtn.addEventListener('click', function () {
-      var target = document.getElementById('productSwiper');
+      var target = $menuViewToolbar.hidden ? $productSwiper : $menuViewToolbar;
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }

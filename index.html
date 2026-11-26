@@ -19,18 +19,6 @@
   <!-- Particle Canvas -->
   <canvas id="particleCanvas"></canvas>
 
-  <!-- Announcement Bar -->
-  <div class="announcement-bar" id="announcementBar">
-    <div class="marquee-track">
-      <span class="marquee-content">
-        🚚 رسوم التوصيل مجاناً لجميع الطلبات &bull; سفرتنا — أكلات تراثية أردنية أصيلة &bull; 🔥 جودة عالية وطعم لا يُنسى &bull;&nbsp;
-      </span>
-      <span class="marquee-content" aria-hidden="true">
-        🚚 رسوم التوصيل مجاناً لجميع الطلبات &bull; سفرتنا — أكلات تراثية أردنية أصيلة &bull; 🔥 جودة عالية وطعم لا يُنسى &bull;&nbsp;
-      </span>
-    </div>
-  </div>
-
   <!-- Main Container -->
   <div class="main-container">
     <!-- Header -->
@@ -47,16 +35,12 @@
     <!-- Mobile-first journey hero -->
     <section class="journey-hero" aria-labelledby="journeyTitle">
       <div class="journey-hero-glow" aria-hidden="true"></div>
-      <div class="journey-hero-copy">
-        <span class="journey-eyebrow">بين المحاضرات، في وقت للّقمة الزاكية</span>
-        <h1 id="journeyTitle"><span class="hero-brand-line">سفرتنا..</span> هي خدمة مع أكلات زاكية <span class="hero-student-icon" aria-hidden="true">🎓</span></h1>
-        <p>اسحب يميناً أو يساراً لاكتشاف أكلات سفرتنا.</p>
-      </div>
+      <h1 id="journeyTitle"><span class="hero-brand-line">سفرتنا..</span> هي خدمة مع أكلات زاكية <span class="hero-student-icon" aria-hidden="true">🎓</span></h1>
       <div class="journey-hero-actions">
-        <button class="journey-start-btn" id="journeyStartBtn" type="button"><svg class="cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14" /></svg> استكشف المنيو <span aria-hidden="true">←</span></button>
+        <button class="journey-start-btn" id="journeyStartBtn" type="button"><svg class="cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14" /></svg> استكشف المنيو <span aria-hidden="true">↓</span></button>
         <button class="refresh-btn" id="refreshBtn" type="button" aria-label="تحديث الأصناف">↻</button>
+        <span class="sync-status" id="syncStatus" aria-live="polite"></span>
       </div>
-      <span class="sync-status" id="syncStatus" aria-live="polite"></span>
     </section>
 
     <!-- Category Pills -->
@@ -66,9 +50,15 @@
       </div>
     </nav>
 
-    <div class="swipe-guide" id="swipeGuide" role="status">
-      <span class="swipe-guide-finger" aria-hidden="true">☝</span>
-      <span>اسحب يميناً أو يساراً لاكتشاف باقي الأصناف</span>
+    <div class="menu-view-toolbar" id="menuViewToolbar" hidden>
+      <div class="menu-view-switch" role="group" aria-label="طريقة عرض الأصناف">
+        <button class="menu-view-button" id="menuViewRing" type="button" aria-pressed="true" aria-controls="swiperWrapper">العرض الدائري</button>
+        <button class="menu-view-button" id="menuViewGrid" type="button" aria-pressed="false" aria-controls="swiperWrapper">عرض الكل</button>
+      </div>
+      <div class="swipe-guide" id="swipeGuide">
+        <span class="swipe-guide-arrow" aria-hidden="true">↔</span>
+        <span>اسحب يمين أو شمال</span>
+      </div>
     </div>
 
     <!-- Skeleton Loader -->
@@ -97,6 +87,8 @@
     </div>
   </div>
 
+  <dialog class="product-details-dialog" id="productDetails" aria-labelledby="productDetailsTitle"></dialog>
+
   <!-- Floating Cart Bar -->
   <div class="cart-bar" id="cartBar">
     <div class="cart-bar-inner" id="cartBarInner">
@@ -104,8 +96,12 @@
         <span class="cart-bar-icon">🛒</span>
         <span class="cart-badge" id="cartBadge" style="display:none;">0</span>
       </div>
-      <div class="cart-bar-center">
+      <div class="cart-bar-center" aria-live="polite" aria-atomic="true">
         <span id="cartBarText">سلتك فارغة</span>
+        <div class="cart-bar-notice" id="cartBarNotice" hidden>
+          <span class="cart-notice-label"><span aria-hidden="true">✓</span> انضاف للسلة</span>
+          <strong id="cartLastItem" dir="auto"></strong>
+        </div>
       </div>
       <div class="cart-bar-right">
         <span id="cartBarTotal"></span>
@@ -121,9 +117,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Toast Container -->
-  <div class="toast-container" id="toastContainer"></div>
 
   <!-- App JS -->
   <script src="app.js"></script>
