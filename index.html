@@ -16,9 +16,6 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Particle Canvas -->
-  <canvas id="particleCanvas"></canvas>
-
   <!-- Main Container -->
   <div class="main-container">
     <!-- Header -->
@@ -27,7 +24,7 @@
         <span class="logo-motion">
           <span class="logo-touch-glow" aria-hidden="true"></span>
           <span class="logo-placeholder" id="logoPlaceholder"></span>
-          <img class="brand-logo" id="brandLogo" src="" alt="سفرتنا" draggable="false" style="display:none;" />
+          <img class="brand-logo" id="brandLogo" alt="سفرتنا" draggable="false" decoding="async" style="display:none;" />
         </span>
       </button>
     </header>
@@ -55,10 +52,8 @@
         <button class="menu-view-button" id="menuViewRing" type="button" aria-pressed="true" aria-controls="swiperWrapper">العرض الدائري</button>
         <button class="menu-view-button" id="menuViewGrid" type="button" aria-pressed="false" aria-controls="swiperWrapper">عرض الكل</button>
       </div>
-      <div class="swipe-guide" id="swipeGuide">
-        <span class="swipe-guide-arrow" aria-hidden="true">↔</span>
-        <span>اسحب يمين أو شمال</span>
-      </div>
+      <button class="menu-pick-button" id="menuPickProduct" type="button" aria-label="شو آكل؟ اقترح صنفًا من القسم" aria-controls="swiperWrapper"><span aria-hidden="true">⤨</span> شو آكل؟</button>
+      <span class="menu-pick-status" id="menuPickStatus" role="status" aria-atomic="true"></span>
     </div>
 
     <!-- Skeleton Loader -->
@@ -81,6 +76,10 @@
     <!-- Product gallery -->
     <div class="product-gallery" id="productSwiper" role="region" aria-label="معرض أصناف سفرتنا" tabindex="0" style="display:none;">
       <button class="gallery-motion-toggle" id="galleryMotionToggle" type="button" hidden></button>
+      <div class="swipe-guide" id="swipeGuide">
+        <span class="swipe-guide-arrow" aria-hidden="true">↔</span>
+        <span>اسحب</span>
+      </div>
       <div class="product-gallery-track" id="swiperWrapper">
         <!-- slides injected by JS -->
       </div>

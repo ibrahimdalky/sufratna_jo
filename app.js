@@ -89,7 +89,6 @@
 
   /* ──────────── DOM REFERENCES ──────────── */
 
-  var $canvas         = document.getElementById('particleCanvas');
   var $skeletonLoader = document.getElementById('skeletonLoader');
   var $errorState     = document.getElementById('errorState');
   var $retryBtn       = document.getElementById('retryBtn');
@@ -112,70 +111,6 @@
   var $syncStatus      = document.getElementById('syncStatus');
   var $menuViewToolbar = document.getElementById('menuViewToolbar');
   var $swipeGuide      = document.getElementById('swipeGuide');
-
-  /* ══════════════════════════════════════════
-     1. PARTICLE BACKGROUND
-     ══════════════════════════════════════════ */
-
-  (function () {
-    var ctx = $canvas.getContext('2d');
-    var particles = [];
-    var COUNT = window.innerWidth <= 480 ? 26 : 44;
-
-    function resize() {
-      $canvas.width = window.innerWidth;
-      $canvas.height = window.innerHeight;
-      COUNT = window.innerWidth <= 480 ? 26 : 44;
-    }
-
-    function seed() {
-      particles = [];
-      for (var i = 0; i < COUNT; i++) {
-        particles.push({
-          x: Math.random() * $canvas.width,
-          y: Math.random() * $canvas.height,
-          r: Math.random() * 2 + 0.8,
-          dx: (Math.random() - 0.5) * 0.4,
-          dy: (Math.random() - 0.5) * 0.4,
-          opacity: Math.random() * 0.3 + 0.1,
-          opDir: Math.random() > 0.5 ? 1 : -1,
-          isGold: Math.random() > 0.5
-        });
-      }
-    }
-
-    function loop() {
-      if (document.hidden) return;
-      ctx.clearRect(0, 0, $canvas.width, $canvas.height);
-      for (var i = 0; i < particles.length; i++) {
-        var p = particles[i];
-        p.x += p.dx;
-        p.y += p.dy;
-        p.opacity += p.opDir * 0.003;
-        if (p.opacity >= 0.4) p.opDir = -1;
-        if (p.opacity <= 0.1) p.opDir = 1;
-        if (p.x < 0) p.x = $canvas.width;
-        if (p.x > $canvas.width) p.x = 0;
-        if (p.y < 0) p.y = $canvas.height;
-        if (p.y > $canvas.height) p.y = 0;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.isGold
-          ? 'rgba(242,183,52,' + p.opacity + ')'
-          : 'rgba(188,67,39,' + p.opacity + ')';
-        ctx.fill();
-      }
-      requestAnimationFrame(loop);
-    }
-
-    resize();
-    seed();
-    loop();
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) loop();
-    });
-    window.addEventListener('resize', function () { resize(); seed(); });
-  })();
 
   /* ══════════════════════════════════════════
      2. HELPERS
@@ -459,16 +394,17 @@
   /* ──────────── LOGO ──────────── */
 
   function loadLogo(url) {
-    if (!url) return;
-    var img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function () {
-      $brandLogo.src = url;
+    if (!url || $brandLogo.getAttribute('src') === url) return;
+    $brandLogo.onload = function () {
       $brandLogo.style.display = 'block';
       $logoPlaceholder.style.display = 'none';
     };
-    img.onerror = function () { /* keep placeholder */ };
-    img.src = url;
+    $brandLogo.onerror = function () {
+      $brandLogo.style.display = 'none';
+      $logoPlaceholder.style.display = '';
+      $brandLogo.removeAttribute('src');
+    };
+    $brandLogo.src = url;
   }
 
   /* ══════════════════════════════════════════
@@ -516,15 +452,29 @@
   var detailsProduct = null;
   var detailsTrigger = null;
 
-  function sizePillsMarkup(product, index) {
+  function sizePillsMarkup(product, index, showPrice) {
     if (!product.sizes.length) return '';
     var html = '<div class="size-selector" role="group" aria-label="حجم الوجبة">';
     for (var i = 0; i < product.sizes.length; i++) {
       var size = product.sizes[i];
       var selected = size === product.selectedSize;
-      html += '<button type="button" class="size-pill' + (selected ? ' active' : '') + '" data-idx="' + index + '" data-si="' + i + '" aria-pressed="' + selected + '">' + escapeHTML(size.label) + '</button>';
+      var priceId = 'productSizePrice' + i;
+      html += '<button type="button" class="size-pill' + (selected ? ' active' : '') + '" data-idx="' + index + '" data-si="' + i + '" aria-pressed="' + selected + '"' +
+        (showPrice ? ' aria-label="' + escapeAttr(size.label) + '" aria-describedby="' + priceId + '"' : '') + '>' +
+        (showPrice ? '<span class="detail-size-name">' + escapeHTML(size.label) + '</span>' : escapeHTML(size.label)) +
+        (showPrice ? '<span class="detail-size-price" id="' + priceId + '"><bdi>' + size.price.toFixed(2) + '</bdi> د.أ</span>' : '') +
+        '</button>';
     }
     return html + '</div>';
+  }
+
+  function gridPriceMarkup(product, index) {
+    var prices = product.sizes.length ? product.sizes.map(function (size) { return size.price; }) : [product.base_price];
+    var minimum = Math.min.apply(null, prices);
+    var prefix = minimum < Math.max.apply(null, prices) ? '<span>من</span>' : '';
+    return '<div class="grid-card-footer"><div class="grid-card-price" id="gridCardPrice' + index + '">' + prefix +
+      '<bdi>' + minimum.toFixed(2) + '</bdi><span>د.أ</span></div>' +
+      '<span class="grid-card-arrow" aria-hidden="true"></span></div>';
   }
 
   function keepOpenDetails() {
@@ -581,11 +531,13 @@
             badgeHTML +
             '<button type="button" class="card-image-wrap card-image-trigger" data-idx="' + idx + '" aria-label="تفاصيل ' + escapeAttr(p.name) + '" aria-haspopup="dialog" aria-controls="productDetails">' +
               '<img ' + imageSource + '="' + escapeAttr(imgSrc) + '" alt="" draggable="false" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+              '<span class="suggested-product-badge" aria-hidden="true"><span>✦</span> اقتراحنا إلك</span>' +
               '<span class="card-details-cue" aria-hidden="true">التفاصيل ↑</span>' +
             '</button>' +
             '<div class="card-body">' +
               '<span class="card-category">' + escapeHTML(p.category) + '</span>' +
               '<h2 class="card-name">' + escapeHTML(p.name) + '</h2>' +
+              gridPriceMarkup(p, idx) +
               '<p class="card-desc">' + escapeHTML(p.description) + '</p>' +
               sizePillsMarkup(p, idx) +
               '<div class="card-price" data-idx="' + idx + '">' +
@@ -602,8 +554,10 @@
     productGallery.reset(detailsIndex);
     if (detailsIndex >= 0) {
       detailsTrigger = productCardAt(detailsIndex).querySelector('.card-image-trigger');
-      renderProductDetails(detailsProduct, detailsIndex);
-      $productDetails.querySelector('.product-details-close').focus({ preventScroll: true });
+      if (!detailsExit) {
+        renderProductDetails(detailsProduct, detailsIndex);
+        $productDetails.querySelector('.product-details-close').focus({ preventScroll: true });
+      }
     }
   }
 
@@ -615,6 +569,7 @@
     var slides = [];
     var gridMode = false;
     var current = null;
+    var suggestedPanel = null;
     var angle = 0;
     var angleStep = 0;
     var width = 0;
@@ -632,9 +587,13 @@
     var pauseOverride = null;
     var resumeAt = 0;
     var resumeTimer = 0;
+    var distantPhotosReady = false;
+    var distantPhotoTimer = 0;
     var toggle = document.getElementById('galleryMotionToggle');
     var ringView = document.getElementById('menuViewRing');
     var gridView = document.getElementById('menuViewGrid');
+    var pickProduct = document.getElementById('menuPickProduct');
+    var pickStatus = document.getElementById('menuPickStatus');
     var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     var inView = typeof IntersectionObserver === 'undefined';
 
@@ -646,6 +605,7 @@
       var image = slides[wrap(index)].image;
       if (!image) return;
       if (!lowPriority && image.loading === 'lazy') image.loading = 'eager';
+      if (!lowPriority && image.fetchPriority === 'low') image.fetchPriority = 'auto';
       if (!image.dataset.gallerySrc) return;
       if (lazy) image.loading = 'lazy';
       if (lowPriority) image.fetchPriority = 'low';
@@ -669,6 +629,23 @@
       preloadImage(index);
       preloadImage(index - 1);
       preloadImage(index + 1);
+    }
+
+    function prioritizeOpeningPhoto() {
+      clearTimeout(distantPhotoTimer);
+      var first = slides.length ? slides[0].image : null;
+      distantPhotosReady = !first || first.complete;
+      if (distantPhotosReady) return;
+
+      function warmDistantPhotos() {
+        if (!slides.length || slides[0].image !== first || distantPhotosReady) return;
+        clearTimeout(distantPhotoTimer);
+        distantPhotosReady = true;
+        queueFrame();
+      }
+      first.addEventListener('load', warmDistantPhotos, { once: true });
+      first.addEventListener('error', warmDistantPhotos, { once: true });
+      distantPhotoTimer = setTimeout(warmDistantPhotos, 1800);
     }
 
     function paint() {
@@ -699,7 +676,7 @@
           item.panel.style.opacity = opacity;
           item.opacity = opacity;
         }
-        if (item.image && item.image.dataset.gallerySrc) {
+        if (distantPhotosReady && item.image && item.image.dataset.gallerySrc) {
           var distance = radius * (1 - cosine);
           var x = Math.abs(radius * Math.sin(phase) * perspective / (perspective + distance));
           if (x < width * 0.82) preloadImage(i, true);
@@ -727,14 +704,19 @@
 
     function tick(now) {
       frame = 0;
+      var onSettled = null;
       var elapsed = previousTime ? Math.min(32, Math.max(0, now - previousTime)) : 0;
       if (!gesture && canAnimate()) {
         if (alignment) {
-          var progress = Math.min(1, Math.max(0, (now - alignment.time) / 240));
+          var progress = Math.min(1, Math.max(0, (now - alignment.time) / alignment.duration));
           angle = alignment.from + (alignment.to - alignment.from) * (1 - Math.pow(1 - progress, 3));
-          if (progress === 1) alignment = null;
+          if (progress === 1) {
+            onSettled = alignment.onSettled;
+            alignment = null;
+          }
         } else {
           var idleSpeed = canAutoplay(now) ? direction * 18 / (radius * radians) : 0;
+          if (suggestedPanel && elapsed && (glide || idleSpeed)) clearSuggestion();
           angle += (glide + idleSpeed) * elapsed / 1000;
           glide *= Math.exp(-elapsed / 160);
           if (Math.abs(glide) < 0.45) glide = 0;
@@ -742,6 +724,7 @@
         angle %= 360;
       }
       paint();
+      if (onSettled) onSettled();
 
       if (!gesture && canAnimate() && (alignment || glide || canAutoplay(now))) {
         previousTime = now;
@@ -757,16 +740,31 @@
       resumeTimer = setTimeout(queueFrame, milliseconds + 20);
     }
 
-    function centerCard(target) {
+    function centerCard(target, duration, onSettled) {
       glide = 0;
       if (reducedMotion.matches || !canAnimate()) {
         angle = target % 360;
         alignment = null;
         paint();
+        if (onSettled) onSettled();
       } else {
-        alignment = { from: angle, to: target, time: performance.now() };
+        alignment = { from: angle, to: target, time: performance.now(), duration: duration || 240, onSettled: onSettled };
         queueFrame();
       }
+    }
+
+    function clearSuggestion() {
+      if (!suggestedPanel) return;
+      suggestedPanel.classList.remove('is-suggested');
+      suggestedPanel = null;
+      pickStatus.textContent = '';
+    }
+
+    function showSuggestion(index) {
+      suggestedPanel = slides[index].panel;
+      suggestedPanel.classList.add('is-suggested');
+      pickStatus.textContent = 'اقتراحنا إلك: ' + filteredProducts[index].name;
+      holdFor(5000);
     }
 
     function updateControls() {
@@ -787,6 +785,8 @@
         item.panel.removeAttribute('aria-hidden');
         item.panel.style.removeProperty('opacity');
         item.opacity = null;
+        var trigger = item.panel.querySelector('.card-image-trigger');
+        if (trigger) trigger.setAttribute('aria-describedby', 'gridCardPrice' + index);
         preloadImage(index, index > 1, index > 1);
       });
     }
@@ -796,6 +796,8 @@
       slides.forEach(function (item) {
         item.panel.setAttribute('inert', '');
         item.panel.setAttribute('aria-hidden', 'true');
+        var trigger = item.panel.querySelector('.card-image-trigger');
+        if (trigger) trigger.removeAttribute('aria-describedby');
       });
       layout();
       queueFrame();
@@ -804,6 +806,7 @@
     function selectView(showGrid) {
       if (gridMode === showGrid) return;
       finishGesture(true);
+      clearSuggestion();
       cancelAnimationFrame(frame);
       clearTimeout(resumeTimer);
       frame = previousTime = glide = resumeAt = 0;
@@ -813,12 +816,32 @@
       $productSwiper.classList.toggle('is-grid', gridMode);
       $productSwiper.setAttribute('aria-label', gridMode ? 'عرض أصناف سفرتنا' : 'معرض أصناف سفرتنا');
       if (gridMode) prepareGrid();
-      else prepareRing();
+      else {
+        prepareRing();
+        var bounds = $productSwiper.getBoundingClientRect();
+        inView = Math.min(window.innerHeight, bounds.bottom) - Math.max(0, bounds.top) >= bounds.height * 0.2;
+      }
       updateControls();
     }
 
     ringView.addEventListener('click', function () { selectView(false); });
     gridView.addEventListener('click', function () { selectView(true); });
+    pickProduct.addEventListener('click', function () {
+      if (!filteredProducts.length) return;
+      selectView(false);
+      finishGesture(true);
+      var origin = alignment ? alignment.to : angle;
+      var previousIndex = wrap(Math.round(origin / angleStep));
+      var count = filteredProducts.length;
+      var index = count > 1 ? wrap(previousIndex + 1 + Math.floor(Math.random() * (count - 1))) : 0;
+      var distance = ((index * angleStep - angle) % 360 + 360) % 360;
+      if (distance > 300) distance -= 360;
+      clearSuggestion();
+      holdFor(5500);
+      centerCard(angle + distance, Math.min(870, 540 + Math.abs(distance)), function () {
+        showSuggestion(index);
+      });
+    });
 
     function degreesPerPixel() {
       // Keep small categories responsive without changing the size of their ring.
@@ -866,6 +889,7 @@
       if (!gesture.dragging) {
         if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) { finishGesture(true); return; }
         if (Math.abs(dx) < 8 || Math.abs(dx) <= Math.abs(dy)) return;
+        clearSuggestion();
         gesture.dragging = true;
         suppressClick = true;
         $productSwiper.setPointerCapture(event.pointerId);
@@ -906,6 +930,7 @@
     $productSwiper.addEventListener('keydown', function (event) {
       if (gridMode || slides.length <= 1 || gesture || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
       event.preventDefault();
+      clearSuggestion();
       direction = event.key === 'ArrowRight' ? 1 : -1;
       hasSwiped = true;
       updateControls();
@@ -968,7 +993,7 @@
     $productSwiper.addEventListener('focusout', queueFrame);
     function onMotionPreferenceChange() {
       glide = 0;
-      if (alignment && reducedMotion.matches) centerCard(alignment.to);
+      if (alignment && reducedMotion.matches) centerCard(alignment.to, alignment.duration, alignment.onSettled);
       updateControls();
       queueFrame();
     }
@@ -990,6 +1015,7 @@
       },
       reset: function (index) {
         finishGesture(true);
+        clearSuggestion();
         cancelAnimationFrame(frame);
         clearTimeout(resumeTimer);
         frame = previousTime = resumeAt = angle = glide = 0;
@@ -999,6 +1025,7 @@
         slides = Array.from($swiperWrapper.children, function (panel) {
           return { panel: panel, image: panel.querySelector('img'), opacity: 1, faceAway: false };
         });
+        prioritizeOpeningPhoto();
         angleStep = 360 / Math.max(1, slides.length);
         if (index >= 0 && slides.length) angle = index * angleStep;
         updateControls();
@@ -1016,6 +1043,7 @@
   }
 
   function renderProductDetails(product, index) {
+    if (stopPhotoFlight) stopPhotoFlight();
     var card = productCardAt(index);
     var cardImage = card ? card.querySelector('img') : null;
     var imageSource = (cardImage && cardImage.currentSrc) || product.image_url || PLACEHOLDER_SVG;
@@ -1033,7 +1061,7 @@
             '<img class="product-details-photo" src="' + escapeAttr(imageSource) + '" alt="" decoding="async" />' +
             (product.description ? '<p>' + escapeHTML(product.description) + '</p>' : '') +
           '</div>' +
-          (product.sizes.length ? '<p class="product-details-size-label">اختر الحجم</p>' + sizePillsMarkup(product, index) : '') +
+          (product.sizes.length ? '<p class="product-details-size-label">اختر الحجم</p>' + sizePillsMarkup(product, index, true) : '') +
         '</div>' +
         '<footer class="product-details-footer">' +
           '<div class="product-details-total">' +
@@ -1051,11 +1079,71 @@
     }, { once: true });
   }
 
+  var stopPhotoFlight = null;
+  var detailsExit = null;
+
+  function photoBounds(element, top, bottom) {
+    if (!element || !element.isConnected) return null;
+    var rect = element.getBoundingClientRect();
+    var visibleHeight = Math.min(rect.bottom, bottom) - Math.max(rect.top, top);
+    return rect.width > 0 && rect.height > 0 && visibleHeight >= Math.min(24, rect.height) ? rect : null;
+  }
+
+  function moveProductPhoto(image, from, to, covers, duration) {
+    if (!from || !to || !image || !image.complete || !image.naturalWidth || !image.currentSrc || feedbackMotionPreference.matches) return;
+    var flight = document.createElement('img');
+    if (typeof flight.showPopover !== 'function' || typeof flight.animate !== 'function') return;
+
+    flight.className = 'product-photo-flight';
+    flight.alt = '';
+    flight.setAttribute('aria-hidden', 'true');
+    flight.setAttribute('popover', 'manual');
+    flight.src = image.currentSrc;
+    flight.style.left = from.left + 'px';
+    flight.style.top = from.top + 'px';
+    flight.style.width = from.width + 'px';
+    flight.style.height = from.height + 'px';
+    document.body.appendChild(flight);
+    try {
+      flight.showPopover();
+    } catch (error) {
+      flight.remove();
+      return;
+    }
+
+    covers = covers.filter(Boolean);
+    covers.forEach(function (element) { element.classList.add('is-photo-in-flight'); });
+    var dx = to.left - from.left;
+    var dy = to.top - from.top;
+    var scaleX = to.width / from.width;
+    var scaleY = to.height / from.height;
+    var movement = flight.animate([
+      { transform: 'none' },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + scaleX + ',' + scaleY + ')' }
+    ], { duration: duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    function cleanUp() {
+      if (stopPhotoFlight !== cancel) return;
+      flight.remove();
+      covers.forEach(function (element) { element.classList.remove('is-photo-in-flight'); });
+      stopPhotoFlight = null;
+    }
+    function cancel() {
+      movement.cancel();
+      cleanUp();
+    }
+    stopPhotoFlight = cancel;
+    movement.finished.then(cleanUp, cleanUp);
+  }
+
   function openProductDetails(trigger) {
-    if ($productDetails.open || typeof $productDetails.showModal !== 'function') return;
+    if ($productDetails.open || detailsExit || typeof $productDetails.showModal !== 'function') return;
     var index = Number(trigger.dataset.idx);
     var product = filteredProducts[index];
     if (!product || (!productGallery.isGrid() && !trigger.closest('.product-slide.is-current'))) return;
+
+    var image = trigger.querySelector('img');
+    var source = photoBounds(trigger, 0, $cartBar.getBoundingClientRect().top);
 
     detailsProduct = product;
     detailsTrigger = trigger;
@@ -1063,14 +1151,60 @@
     $productDetails.showModal();
     document.documentElement.classList.add('has-product-details');
     productGallery.lockToProduct(index);
+
+    var thumbnail = $productDetails.querySelector('.product-details-photo');
+    var destination = thumbnail.getBoundingClientRect();
+    var sheetTravel = Math.max(0, $productDetails.getBoundingClientRect().bottom - window.innerHeight);
+    moveProductPhoto(image, source, {
+      left: destination.left, top: destination.top - sheetTravel,
+      width: destination.width, height: destination.height
+    }, [image, thumbnail], 285);
+  }
+
+  function requestDetailsClose() {
+    if (!$productDetails.open || detailsExit) return;
+    if (feedbackMotionPreference.matches || typeof $productDetails.animate !== 'function') {
+      $productDetails.close();
+      return;
+    }
+
+    var thumbnail = $productDetails.querySelector('.product-details-photo');
+    var content = $productDetails.querySelector('.product-details-content').getBoundingClientRect();
+    var from = !stopPhotoFlight && photoBounds(thumbnail, Math.max(0, content.top), Math.min(window.innerHeight, content.bottom));
+    if (stopPhotoFlight) stopPhotoFlight();
+    var to = photoBounds(detailsTrigger, 0, $cartBar.getBoundingClientRect().top);
+    var targetImage = to ? detailsTrigger.querySelector('img') : null;
+
+    var sheetTransform = getComputedStyle($productDetails).transform;
+    $productDetails.classList.add('is-closing');
+    moveProductPhoto(thumbnail, from, to, [thumbnail, targetImage], 220);
+    var exit = $productDetails.animate([
+      { transform: sheetTransform }, { transform: 'translateY(100%)' }
+    ], { duration: 220, easing: 'ease-in', fill: 'forwards' });
+    detailsExit = exit;
+    function finishClose() {
+      if (detailsExit === exit && $productDetails.open) $productDetails.close();
+    }
+    exit.finished.then(finishClose, finishClose);
   }
 
   var pressedDetailsBackdrop = false;
   $productDetails.addEventListener('pointerdown', function (event) {
     pressedDetailsBackdrop = event.target === $productDetails;
   });
+  $productDetails.addEventListener('cancel', function (event) {
+    event.preventDefault();
+    requestDetailsClose();
+  });
   $productDetails.addEventListener('close', function () {
     if ($productDetails.open) return;
+    if (stopPhotoFlight) stopPhotoFlight();
+    if (detailsExit) {
+      var exit = detailsExit;
+      detailsExit = null;
+      exit.cancel();
+    }
+    $productDetails.classList.remove('is-closing');
     document.documentElement.classList.remove('has-product-details');
     if (detailsTrigger && detailsTrigger.isConnected && !detailsTrigger.closest('[inert]')) {
       detailsTrigger.focus({ preventScroll: true });
@@ -1116,9 +1250,10 @@
   function handleProductAction(event) {
     var target = event.target;
     var inDetails = event.currentTarget === $productDetails;
+    if (inDetails && detailsExit) return;
     if (inDetails && (target.closest('.product-details-close') ||
         (target === $productDetails && pressedDetailsBackdrop))) {
-      $productDetails.close();
+      requestDetailsClose();
       return;
     }
 
