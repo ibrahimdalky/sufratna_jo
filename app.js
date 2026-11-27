@@ -98,6 +98,8 @@
   var $productSwiper  = document.getElementById('productSwiper');
   var $swiperWrapper  = document.getElementById('swiperWrapper');
   var $productDetails = document.getElementById('productDetails');
+  var $cardShareLinkDialog = document.getElementById('cardShareLinkDialog');
+  var $cardShareStatus = document.getElementById('cardShareStatus');
   var $categoryScroll = document.getElementById('categoryScroll');
   var $cartBadge      = document.getElementById('cartBadge');
   var $cartBarText    = document.getElementById('cartBarText');
@@ -472,12 +474,17 @@
     return html + '</div>';
   }
 
-  function gridPriceMarkup(product, index) {
+  function productStartingPrice(product) {
     var prices = product.sizes.length ? product.sizes.map(function (size) { return size.price; }) : [product.base_price];
     var minimum = Math.min.apply(null, prices);
-    var prefix = minimum < Math.max.apply(null, prices) ? '<span>من</span>' : '';
+    return { amount: minimum.toFixed(2), varies: minimum < Math.max.apply(null, prices) };
+  }
+
+  function gridPriceMarkup(product, index) {
+    var price = productStartingPrice(product);
+    var prefix = price.varies ? '<span>من</span>' : '';
     return '<div class="grid-card-footer"><div class="grid-card-price" id="gridCardPrice' + index + '">' + prefix +
-      '<bdi>' + minimum.toFixed(2) + '</bdi><span>د.أ</span></div>' +
+      '<bdi>' + price.amount + '</bdi><span>د.أ</span></div>' +
       '<span class="grid-card-arrow" aria-hidden="true"></span></div>';
   }
 
@@ -533,11 +540,15 @@
         '<div class="product-slide" data-idx="' + idx + '">' +
           '<div class="product-card' + (showBestseller ? ' is-bestseller' : '') + '">' +
             badgeHTML +
-            '<button type="button" class="card-image-wrap card-image-trigger" data-idx="' + idx + '" aria-label="تفاصيل ' + escapeAttr(p.name) + '" aria-haspopup="dialog" aria-controls="productDetails">' +
-              '<img ' + imageSource + '="' + escapeAttr(imgSrc) + '" alt="" draggable="false" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
-              '<span class="suggested-product-badge" aria-hidden="true"><span>✦</span> اقتراحنا إلك</span>' +
-              '<span class="card-details-cue" aria-hidden="true">التفاصيل ↑</span>' +
-            '</button>' +
+            '<div class="card-photo-actions">' +
+              '<button type="button" class="card-image-wrap card-image-trigger" data-idx="' + idx + '" aria-label="تفاصيل ' + escapeAttr(p.name) + '" aria-haspopup="dialog" aria-controls="productDetails">' +
+                '<img ' + imageSource + '="' + escapeAttr(imgSrc) + '" alt="" draggable="false" fetchpriority="' + imagePriority + '" decoding="async" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_SVG + '\';" />' +
+                '<span class="suggested-product-badge" aria-hidden="true"><span>✦</span> اقتراحنا إلك</span>' +
+                '<span class="card-details-cue" aria-hidden="true">التفاصيل ↑</span>' +
+              '</button>' +
+              (p.id ? '<button type="button" class="card-share-shortcut" data-idx="' + idx + '" aria-label="شارك ' + escapeAttr(p.name) + '" title="مشاركة الصنف">' +
+                '<span class="card-share-icon" aria-hidden="true"><span class="card-share-glyph"></span></span></button>' : '') +
+            '</div>' +
             '<div class="card-body">' +
               '<span class="card-category">' + escapeHTML(p.category) + '</span>' +
               '<h2 class="card-name">' + escapeHTML(p.name) + '</h2>' +
@@ -624,12 +635,13 @@
       if (current && current.contains(document.activeElement)) $productSwiper.focus({ preventScroll: true });
       var left = slides[wrap(index + 1)].panel;
       var right = slides[wrap(index - 1)].panel;
-      slides.forEach(function (item) {
+      slides.forEach(function (item, position) {
         var panel = item.panel;
         var active = panel === next;
         var side = !active && (panel === left || panel === right);
         panel.classList.toggle('is-current', active);
         panel.classList.toggle('is-side-choice', side);
+        panel.classList.toggle('is-left-choice', side && Math.sin((angle - position * angleStep) * radians) < 0);
         panel.toggleAttribute('inert', !active && !side);
         if (active || side) panel.removeAttribute('aria-hidden');
         else panel.setAttribute('aria-hidden', 'true');
@@ -699,7 +711,7 @@
     }
 
     function canAnimate() {
-      return !gridMode && slides.length > 1 && inView && !document.hidden && !$productDetails.open && !$drawerOverlay.classList.contains('open');
+      return !gridMode && slides.length > 1 && inView && !document.hidden && !$productDetails.open && !$cardShareLinkDialog.open && !$drawerOverlay.classList.contains('open');
     }
 
     function canAutoplay(now) {
@@ -792,6 +804,7 @@
       slides.forEach(function (item, index) {
         item.panel.classList.remove('is-current');
         item.panel.classList.remove('is-side-choice');
+        item.panel.classList.remove('is-left-choice');
         item.panel.removeAttribute('inert');
         item.panel.removeAttribute('aria-hidden');
         item.panel.style.removeProperty('opacity');
@@ -936,6 +949,14 @@
     $swiperWrapper.addEventListener('click', function (event) {
       var side = event.target.closest('.side-product-button');
       if (!gridMode && side && side.closest('.is-side-choice')) {
+        var frontShare = current && current.querySelector('.card-share-shortcut');
+        if (frontShare && event.detail > 0) {
+          var hit = frontShare.getBoundingClientRect();
+          if (event.clientX >= hit.left && event.clientX <= hit.right && event.clientY >= hit.top && event.clientY <= hit.bottom) {
+            openSharePreview(filteredProducts[Number(frontShare.dataset.idx)]);
+            return;
+          }
+        }
         clearSuggestion();
         var target = Number(side.dataset.idx) * angleStep;
         var distance = ((target - angle + 540) % 360) - 180;
@@ -1083,10 +1104,6 @@
           '</div>' +
         '</header>' +
         '<div class="product-details-content">' +
-          '<div class="product-share-area">' +
-            '<span class="product-share-status" role="status"></span>' +
-            '<label class="product-share-fallback" hidden>رابط الصنف <input type="url" readonly></label>' +
-          '</div>' +
           '<div class="product-details-summary">' +
             '<img class="product-details-photo" src="' + escapeAttr(imageSource) + '" alt="" decoding="async" />' +
             (product.description ? '<p>' + escapeHTML(product.description) + '</p>' : '') +
@@ -1202,32 +1219,69 @@
     openProductDetails(trigger);
   }
 
-  async function shareDish(button) {
-    if (!detailsProduct || !detailsProduct.id) return;
-    var link = new URL(window.location.pathname, window.location.origin);
-    link.searchParams.set('dish', detailsProduct.id);
-    var payload = { title: detailsProduct.name + ' | سفرتنا', url: link.href };
-    var area = $productDetails.querySelector('.product-share-area');
-    var status = area.querySelector('.product-share-status');
-    if (navigator.share) {
-      try { await navigator.share(payload); return; }
-      catch (error) { if (error.name === 'AbortError') return; }
+  var shareDraft = null;
+  var $cardShareUrl = document.getElementById('cardShareUrl');
+  var $cardShareName = document.getElementById('cardShareName');
+  var $cardSharePrice = document.getElementById('cardSharePrice');
+  var $cardShareNative = document.getElementById('cardShareNative');
+  var $cardShareManual = document.getElementById('cardShareManual');
+
+  function openSharePreview(product) {
+    if (!product || !product.id || $cardShareLinkDialog.open) return;
+    var link = new URL(window.location.href);
+    link.search = '';
+    link.hash = '';
+    link.searchParams.set('dish', product.id);
+    var price = productStartingPrice(product);
+    var priceText = (price.varies ? 'من ' : '') + price.amount + ' د.أ';
+    var message = link.href + '\n' + product.name + '\nالسعر ' + priceText;
+    if (typeof $cardShareLinkDialog.showModal !== 'function') {
+      window.prompt('انسخ تفاصيل الصنف', message);
+      return;
     }
+    shareDraft = { title: product.name + ' | سفرتنا', text: message };
+    $cardShareUrl.value = link.href;
+    $cardShareName.textContent = product.name;
+    $cardSharePrice.textContent = priceText;
+    $cardShareNative.hidden = typeof navigator.share !== 'function';
+    $cardShareStatus.textContent = '';
+    $cardShareManual.hidden = true;
+    $cardShareManual.value = '';
+    $cardShareLinkDialog.showModal();
+  }
+
+  async function copyShareDetails() {
+    var draft = shareDraft;
+    if (!draft) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
-        await navigator.clipboard.writeText(link.href);
-        status.textContent = 'تم نسخ رابط الصنف';
+        await navigator.clipboard.writeText(draft.text);
+        if (shareDraft === draft) $cardShareStatus.textContent = 'تم نسخ الرابط والاسم والسعر';
         return;
-      } catch (error) { /* The link can still be copied from the field. */ }
+      } catch (error) { /* The details can still be copied from the text field. */ }
     }
-    if (!button.isConnected || !$productDetails.open) return;
-    var fallback = area.querySelector('.product-share-fallback');
-    fallback.hidden = false;
-    var input = fallback.querySelector('input');
-    input.value = link.href;
-    input.focus({ preventScroll: true });
-    input.select();
+    if (shareDraft !== draft) return;
+    $cardShareStatus.textContent = 'انسخ النص المحدد للمشاركة';
+    $cardShareManual.value = draft.text;
+    $cardShareManual.hidden = false;
+    $cardShareManual.focus();
+    $cardShareManual.select();
   }
+
+  document.getElementById('cardShareCopy').addEventListener('click', copyShareDetails);
+  $cardShareNative.addEventListener('click', async function () {
+    var draft = shareDraft;
+    if (!draft) return;
+    try { await navigator.share(draft); }
+    catch (error) {
+      if (error.name !== 'AbortError' && shareDraft === draft) await copyShareDetails();
+    }
+  });
+  $cardShareLinkDialog.addEventListener('close', function () {
+    if ($cardShareLinkDialog.open) return;
+    shareDraft = null;
+    productGallery.releaseProduct();
+  });
 
   var detailsDrag = null;
   var detailsReturn = null;
@@ -1396,8 +1450,11 @@
       if (!ignoreGrabClick || event.detail === 0) requestDetailsClose();
       return;
     }
-    var share = inDetails && target.closest('.product-share-button');
-    if (share) { shareDish(share); return; }
+    var share = target.closest(inDetails ? '.product-share-button' : '.card-share-shortcut');
+    if (share) {
+      openSharePreview(inDetails ? detailsProduct : filteredProducts[Number(share.dataset.idx)]);
+      return;
+    }
     if (inDetails && (target.closest('.product-details-close') ||
         (target === $productDetails && pressedDetailsBackdrop))) {
       requestDetailsClose();

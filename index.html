@@ -87,6 +87,26 @@
   </div>
 
   <dialog class="product-details-dialog" id="productDetails" aria-labelledby="productDetailsTitle"></dialog>
+  <dialog class="card-share-link-dialog" id="cardShareLinkDialog" aria-labelledby="cardShareLinkTitle">
+    <form method="dialog">
+      <div class="card-share-link-header">
+        <h2 id="cardShareLinkTitle">مشاركة الصنف</h2>
+        <button type="submit" class="product-details-close" aria-label="إغلاق مشاركة الصنف" autofocus>×</button>
+      </div>
+      <label for="cardShareUrl">رابط الصنف</label>
+      <input id="cardShareUrl" type="url" dir="ltr" readonly>
+      <div class="card-share-product-summary">
+        <strong id="cardShareName" dir="auto"></strong>
+        <span id="cardSharePrice"></span>
+      </div>
+      <div class="card-share-link-actions">
+        <button id="cardShareNative" type="button" hidden>شارك</button>
+        <button id="cardShareCopy" type="button">نسخ التفاصيل</button>
+      </div>
+      <p class="card-share-status" id="cardShareStatus" role="status" aria-atomic="true"></p>
+      <textarea id="cardShareManual" aria-label="نص المشاركة للنسخ" rows="4" readonly hidden></textarea>
+    </form>
+  </dialog>
 
   <!-- Floating Cart Bar -->
   <div class="cart-bar" id="cartBar">
